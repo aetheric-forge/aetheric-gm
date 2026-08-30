@@ -1,2 +1,33 @@
 <Solution>
+  <Folder Name="/runtime/" />
+  <Folder Name="/runtime/src/" />
+  <Folder Name="/runtime/src/Abstractions/" />
+  <Folder Name="/runtime/src/Abstractions/Interfaces/">
+    <Project Path="runtime/src/Abstractions/Interfaces/AethericForge.Runtime.Abstractions.Interfaces/AethericForge.Runtime.Abstractions.Interfaces.csproj" />
+  </Folder>
+  <Folder Name="/runtime/src/Institutions/">
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Abstractions/AethericForge.Runtime.Institutions.Abstractions.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Archive/AethericForge.Runtime.Institutions.Archive.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Campus/AethericForge.Runtime.Institutions.Campus.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Library/AethericForge.Runtime.Institutions.Library.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.PostOffice/AethericForge.Runtime.Institutions.PostOffice.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Registry/AethericForge.Runtime.Institutions.Registry.csproj" />
+    <Project Path="runtime/src/Institutions/AethericForge.Runtime.Institutions.Workbench/AethericForge.Runtime.Institutions.Workbench.csproj" />
+  </Folder>
+  <Folder Name="/runtime/src/Models/">
+    <Project Path="runtime/src/Models/AethericForge.Runtime.Models/AethericForge.Runtime.Models.csproj" />
+  </Folder>
+  <Folder Name="/runtime/src/Services/">
+    <Project Path="runtime/src/Services/AethericForge.Runtime.Services.Identity/AethericForge.Runtime.Services.Identity.csproj" />
+    <Project Path="runtime/src/Services/AethericForge.Runtime.Services.Registry/AethericForge.Runtime.Services.Registry.csproj" />
+    <Project Path="runtime/src/Services/AethericForge.Runtime.Services.Workbench/AethericForge.Runtime.Services.Workbench.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AethericGm.Core/AethericGm.Core.csproj" />
+    <Project Path="src/AethericGm.Infrastructure/AethericGm.Infrastructure.csproj" />
+    <Project Path="src/AethericGm.Web/AethericGm.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AethericGm.Tests/AethericGm.Tests.csproj" />
+  </Folder>
 </Solution>

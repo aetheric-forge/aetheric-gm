@@ -1,10 +1,18 @@
 using AethericGm.Web.Components;
+using AethericGm.Core.Campaigns;
+using AethericGm.Infrastructure.Campaigns;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+Directory.CreateDirectory(dataDirectory);
+var campaignRepository = new SqliteCampaignRepository($"Data Source={Path.Combine(dataDirectory, "aetheric-gm.db")}");
+await campaignRepository.InitializeAsync();
+builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
 
 var app = builder.Build();
 

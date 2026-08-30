@@ -7,4 +7,10 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\AethericGm.Core\AethericGm.Core.csproj" />
+    <ProjectReference Include="..\AethericGm.Infrastructure\AethericGm.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Campus\AethericForge.Runtime.Institutions.Campus.csproj" />
+  </ItemGroup>
+
 </Project>

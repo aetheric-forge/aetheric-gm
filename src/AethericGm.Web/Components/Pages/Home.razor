@@ -1,7 +1,23 @@
-﻿@page "/"
-
-<PageTitle>Home</PageTitle>
-
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+@page "/"
+@inject ICampaignRepository Repository
+<PageTitle>Campaigns · Aetheric GM</PageTitle>
+<header class="page-header"><div><p class="eyebrow">Campaign workspace</p><h1>Your campaigns</h1><p>Keep every table's material in its own workspace.</p></div><button class="primary" @onclick="BeginCreate">New campaign</button></header>
+<div class="toolbar"><label><input type="checkbox" @bind="showArchived" @bind:after="LoadAsync" /> Show archived</label></div>
+@if (editing) { <section class="editor panel"><h2>@(selected is null ? "Create campaign" : "Campaign details")</h2>@if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }<label>Name <input @bind="draft.Name" autofocus /></label><div class="field-row"><label>Game system <input @bind="draft.System" /></label><label>Setting <input @bind="draft.Setting" /></label></div><label>Summary <textarea @bind="draft.Summary" rows="4"></textarea></label><div class="actions"><button class="primary" @onclick="SaveAsync">Save campaign</button><button class="quiet" @onclick="Cancel">Cancel</button></div></section> }
+<section class="campaign-grid">
+ @if (campaigns.Count == 0) { <div class="empty panel"><h2>No campaigns here yet</h2><p>Create a campaign to establish your first workspace.</p></div> }
+ @foreach (var campaign in campaigns) { <article class="campaign-card panel @(campaign.Id == selected?.Id ? "selected" : "")"><div class="card-heading"><div><h2>@campaign.Name</h2><p>@(campaign.System ?? "Rules-neutral") · @(campaign.Setting ?? "Setting not set")</p></div>@if (campaign.Id == selected?.Id) { <span class="badge">Open</span> }</div><p class="summary">@(campaign.Summary ?? "No summary yet.")</p><p class="timestamp">Updated @campaign.UpdatedAt.LocalDateTime.ToString("MMM d, yyyy")</p><div class="actions">@if (campaign.ArchivedAt is null) { <button class="primary" @onclick="() => OpenAsync(campaign)">Open</button><button class="quiet" @onclick="() => Edit(campaign)">Edit</button><button class="danger" @onclick="() => ArchiveAsync(campaign)">Archive</button> } else { <button class="quiet" @onclick="() => RestoreAsync(campaign)">Restore</button> }</div></article> }
+</section>
+@code {
+ private List<Campaign> campaigns = []; private Campaign? selected; private bool showArchived, editing; private string? error; private Draft draft = new();
+ protected override async Task OnInitializedAsync() { await LoadAsync(); var id = await Repository.GetSelectedIdAsync(); selected = id is null ? null : await Repository.GetAsync(id.Value); }
+ private async Task LoadAsync() => campaigns = (await Repository.ListAsync(showArchived)).ToList();
+ private void BeginCreate() { selected = null; draft = new(); error = null; editing = true; }
+ private void Edit(Campaign campaign) { selected = campaign; draft = new() { Name = campaign.Name, System = campaign.System, Setting = campaign.Setting, Summary = campaign.Summary }; error = null; editing = true; }
+ private void Cancel() { editing = false; error = null; }
+ private async Task SaveAsync() { try { var now = DateTimeOffset.UtcNow; var campaign = selected ?? Campaign.Create(draft.Name, now); campaign.Update(draft.Name, draft.System, draft.Setting, draft.Summary, now); await Repository.SaveAsync(campaign); await OpenAsync(campaign); editing = false; await LoadAsync(); } catch (ArgumentException ex) { error = ex.Message; } }
+ private async Task OpenAsync(Campaign campaign) { selected = campaign; await Repository.SetSelectedIdAsync(campaign.Id); }
+ private async Task ArchiveAsync(Campaign campaign) { campaign.Archive(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); if (selected?.Id == campaign.Id) { selected = null; await Repository.SetSelectedIdAsync(null); } await LoadAsync(); }
+ private async Task RestoreAsync(Campaign campaign) { campaign.Restore(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); await LoadAsync(); }
+ private sealed class Draft { public string Name { get; set; } = ""; public string? System { get; set; } public string? Setting { get; set; } public string? Summary { get; set; } }
+}
