@@ -5,12 +5,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>aetheric-gm-web</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AethericGm.Core\AethericGm.Core.csproj" />
     <ProjectReference Include="..\AethericGm.Infrastructure\AethericGm.Infrastructure.csproj" />
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Campus\AethericForge.Runtime.Institutions.Campus.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Providers\AethericForge.Runtime.Providers.Identity.Keycloak\AethericForge.Runtime.Providers.Identity.Keycloak.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Identity\AethericForge.Runtime.Services.Identity.csproj" />
+    <ProjectReference Include="..\..\runtime\src\Services\AethericForge.Runtime.Services.Registry\AethericForge.Runtime.Services.Registry.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

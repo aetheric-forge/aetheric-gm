@@ -16,6 +16,12 @@ The campaign slice does not claim those runtime institutions as its persistence 
 
 Dependencies point inward: Web may use Core, Infrastructure, and runtime; Infrastructure uses Core; Core uses neither UI nor database libraries.
 
+## Identity
+
+The application authenticates through the existing Forge Keycloak realm using OpenID Connect authorization code flow with PKCE. ASP.NET Core validates tokens and maintains an HTTP-only, secure authentication cookie; secrets remain external configuration. The authenticated `sub` claim is resolved through the runtime Keycloak provider, `IdentityService`, and the Campus-owned Registry Registrar.
+
+The Registry is a direct child of the standalone Campus. Authentication establishes the operator identity but does not yet introduce application roles or campaign-sharing authorization. All campaign data remains single-operator in this slice.
+
 ## Future Forge Campus integration seam
 
 Future integration supplies a parent host and mounts Aetheric GM as an explicitly constituted descendant institution or application capability. Campaign identifiers and repository contracts remain unchanged. Integration replaces host composition and infrastructure registration—not domain entities or Razor-owned business rules. Until then, Aetheric GM remains exactly one root Campus and does not simulate federation.

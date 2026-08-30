@@ -5,7 +5,8 @@ aside { background: #1c2421; color: #e9e6d8; padding: 28px 22px; display: flex; 
 .brand { color: inherit; text-decoration: none; display: flex; gap: 12px; align-items: center; }
 .brand-mark { background: #bd8a4b; color: #1c2421; padding: 9px; border-radius: 8px; font-weight: 800; }.brand strong,.brand small { display:block; }.brand small { opacity:.68; margin-top:2px; }
 nav { margin-top: 48px; } nav a { display:block; color:#d9d7cd; text-decoration:none; padding:10px 12px; border-radius:7px; } nav a.active { background:#34413c; color:white; }
-.scope-note { margin-top:auto; opacity:.65; font-size:.82rem; line-height:1.5; }
+.operator { margin-top:auto; display:flex; align-items:center; gap:10px; padding-top:24px; border-top:1px solid #ffffff1c; }.operator-mark { width:32px; height:32px; display:grid; place-items:center; border-radius:50%; background:#34413c; font-size:.7rem; font-weight:800; }.operator strong,.operator small { display:block; }.operator small { opacity:.62; font-size:.72rem; margin-top:2px; }.scope-note { opacity:.65; font-size:.82rem; line-height:1.5; }
+.sign-out { background:transparent; color:#d9d7cd; padding:8px 0; font-size:.78rem; font-weight:500; }
 main { min-width:0; }.content { max-width:1100px; margin:auto; padding:52px 48px; }
 .page-header { display:flex; justify-content:space-between; gap:30px; align-items:end; }.page-header h1 { font-family:Georgia,serif; font-size:2.5rem; margin:4px 0 8px; }.page-header p { margin:0; color:#68665f; }
 .eyebrow { text-transform:uppercase; letter-spacing:.13em; font-size:.75rem; font-weight:800; color:#906630!important; }.toolbar { margin:28px 0 18px; }

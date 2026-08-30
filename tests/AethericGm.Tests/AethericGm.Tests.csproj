@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AethericGm.Core\AethericGm.Core.csproj" />
     <ProjectReference Include="..\..\src\AethericGm.Infrastructure\AethericGm.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AethericGm.Web\AethericGm.Web.csproj" />
   </ItemGroup>
 
 </Project>
