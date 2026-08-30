@@ -1,6 +1,8 @@
 using AethericGm.Web.Components;
 using AethericGm.Core.Campaigns;
 using AethericGm.Infrastructure.Campaigns;
+using AethericGm.Core.Rules;
+using AethericGm.Infrastructure.Rules;
 using AethericGm.Web.Composition;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
@@ -55,6 +57,8 @@ Directory.CreateDirectory(dataDirectory);
 var campaignRepository = new SqliteCampaignRepository($"Data Source={Path.Combine(dataDirectory, "aetheric-gm.db")}");
 await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
+var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
+builder.Services.AddSingleton<IRulesCatalog>(new FileRulesCatalog(rulesCatalogPath));
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(

@@ -1,0 +1,6 @@
+{
+  "id": "rules-neutral",
+  "version": "1.0.0",
+  "name": "Rules-neutral",
+  "description": "Campaign records without a game-specific rules package."
+}
