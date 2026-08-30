@@ -1,0 +1,4 @@
+[submodule "runtime"]
+	path = runtime
+	url = git@github-aetheric:aetheric-forge/aetheric-runtime
+	branch = v2.0
