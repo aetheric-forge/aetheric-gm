@@ -60,8 +60,9 @@ var campaignRepository = new SqliteCampaignRepository($"Data Source={Path.Combin
 await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
-builder.Services.AddSingleton<IRulesCatalog>(new FileRulesCatalog(rulesCatalogPath));
-builder.Services.AddSingleton<ICharacterSheetDefinitionStore>(new FileCharacterSheetDefinitionStore(rulesCatalogPath));
+var rulesCatalog = new FileRulesCatalog(rulesCatalogPath);
+builder.Services.AddSingleton<IRulesCatalog>(rulesCatalog);
+builder.Services.AddSingleton<ICharacterSheetDefinitionStore>(new FileCharacterSheetDefinitionStore(rulesCatalogPath, rulesCatalog));
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(

@@ -35,9 +35,48 @@ public sealed class FileRulesCatalogTests : IDisposable
         Assert.Throws<InvalidDataException>(() => new FileRulesCatalog(root));
     }
 
-    private void WriteManifest(string id, string version, string name, string directory = "package")
+    [Fact]
+    public void Loads_types_records_inheritance_and_references()
+    {
+        var package = WriteManifest("test", "1.0.0", "Test");
+        File.WriteAllText(Path.Combine(package.FullName, "record-types.json"), """
+        {"recordTypes":[
+          {"key":"named","label":"Named","displayField":"name","fields":[{"key":"name","label":"Name","valueKind":"text","cardinality":"one"}]},
+          {"key":"ability","label":"Ability","extends":"named","displayField":"name","fields":[]},
+          {"key":"ancestry","label":"Ancestry","extends":"named","displayField":"name","fields":[{"key":"abilities","label":"Abilities","valueKind":"rules-reference","recordType":"ability","cardinality":"many"}]}
+        ]}
+        """);
+        File.WriteAllText(Path.Combine(package.FullName, "records.json"), """
+        {"records":[
+          {"key":"senses","recordType":"ability","values":{"name":"Keen Senses"}},
+          {"key":"elf","recordType":"ancestry","values":{"name":"Elf","abilities":[{"recordType":"ability","key":"senses"}]}}
+        ]}
+        """);
+
+        var descriptor = Assert.Single(new FileRulesCatalog(root).List());
+        Assert.True(descriptor.RecordTypes.Accepts("named", "ancestry"));
+        Assert.Equal(2, descriptor.RecordTypes.FieldsFor("ancestry").Count);
+        Assert.Equal("elf", Assert.Single(descriptor.RecordsOfType("ancestry")).Key);
+    }
+
+    [Fact]
+    public void Rejects_unresolved_rules_references()
+    {
+        var package = WriteManifest("test", "1.0.0", "Test");
+        File.WriteAllText(Path.Combine(package.FullName, "record-types.json"), """
+        {"recordTypes":[
+          {"key":"ability","label":"Ability","fields":[]},
+          {"key":"ancestry","label":"Ancestry","fields":[{"key":"ability","label":"Ability","valueKind":"rules-reference","recordType":"ability","cardinality":"one"}]}
+        ]}
+        """);
+        File.WriteAllText(Path.Combine(package.FullName, "records.json"), """{"records":[{"key":"elf","recordType":"ancestry","values":{"ability":{"recordType":"ability","key":"missing"}}}]}""");
+        Assert.Throws<InvalidDataException>(() => new FileRulesCatalog(root));
+    }
+
+    private DirectoryInfo WriteManifest(string id, string version, string name, string directory = "package")
     {
         var path = Directory.CreateDirectory(Path.Combine(root, directory));
         File.WriteAllText(Path.Combine(path.FullName, "manifest.json"), $$"""{"id":"{{id}}","version":"{{version}}","name":"{{name}}"}""");
+        return path;
     }
 }

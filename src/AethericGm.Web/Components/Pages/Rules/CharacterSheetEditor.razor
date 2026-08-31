@@ -21,9 +21,12 @@ else
      var currentField = fieldIndex; var field = sections[currentSection].Fields[currentField];
      <div class="field-definition">
       <label>Key <input @bind="field.Key" /></label><label>Label <input @bind="field.Label" /></label>
-      <label>Type <select @bind="field.Type">@foreach (var type in Enum.GetValues<CharacterFieldType>()) { <option value="@type">@type</option> }</select></label>
-      <label class="checkbox-label"><input type="checkbox" @bind="field.Required" /> Required</label>
-      @if (field.Type == CharacterFieldType.Choice) { <label class="choices">Choices <input @bind="field.Choices" placeholder="Comma-separated choices" /></label> }
+      <label>Value <select @bind="field.ValueKind">@foreach (var kind in Enum.GetValues<RecordValueKind>()) { <option value="@kind">@Display(kind)</option> }</select></label>
+      <label>Cardinality <select @bind="field.Cardinality">@foreach (var cardinality in Enum.GetValues<RecordCardinality>()) { <option value="@cardinality">@Display(cardinality)</option> }</select></label>
+      @if (RecordFieldDefinition.RequiresRecordType(field.ValueKind))
+      {
+       <label>Record type <select @bind="field.RecordType"><option value="">Select a record type</option>@foreach (var type in RecordTypes) { <option value="@type.Key">@type.Label</option> }</select></label>
+      }
       <button class="danger" @onclick="() => RemoveField(currentSection, currentField)">Remove</button>
      </div>
     }
@@ -59,10 +62,11 @@ else
    section.Key,
    section.Label,
    section.Fields.Select(field => new CharacterSheetField(
-    field.Key, field.Label, field.Type, field.Required, ParseChoices(field)))));
-  return new CharacterSheetDefinition(ruleset, builtSections);
+    field.Key, field.Label, field.ValueKind, field.Cardinality, RecordFieldDefinition.RequiresRecordType(field.ValueKind) ? field.RecordType : null))));
+  var definition = new CharacterSheetDefinition(ruleset, builtSections); definition.ValidateAgainst(descriptor!.RecordTypes); return definition;
  }
- private static IEnumerable<string> ParseChoices(EditableField field) => field.Type == CharacterFieldType.Choice ? field.Choices.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) : [];
+ private IReadOnlyList<RecordTypeDefinition> RecordTypes => descriptor?.RecordTypes.List() ?? [];
+ private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
  private sealed class EditableSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableField> Fields { get; set; } = []; public static EditableSection From(CharacterSheetSection value) => new() { Key = value.Key, Label = value.Label, Fields = value.Fields.Select(EditableField.From).ToList() }; }
- private sealed class EditableField { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public CharacterFieldType Type { get; set; } public bool Required { get; set; } public string Choices { get; set; } = ""; public static EditableField From(CharacterSheetField value) => new() { Key = value.Key, Label = value.Label, Type = value.Type, Required = value.Required, Choices = string.Join(", ", value.Choices) }; }
+ private sealed class EditableField { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public RecordValueKind ValueKind { get; set; } public RecordCardinality Cardinality { get; set; } = RecordCardinality.One; public string? RecordType { get; set; } public static EditableField From(CharacterSheetField value) => new() { Key = value.Key, Label = value.Label, ValueKind = value.ValueKind, Cardinality = value.Cardinality, RecordType = value.RecordType }; }
 }
