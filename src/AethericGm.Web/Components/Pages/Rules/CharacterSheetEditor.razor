@@ -1,9 +1,14 @@
 @page "/rulesets/{RulesetId}/{Version}/character-sheet"
 @inject IRulesCatalog Catalog
 @inject ICharacterSheetDefinitionStore Store
+@inject IRulesPackageInstaller PackageInstaller
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using AethericGm.Infrastructure.Rules
+@using AethericGm.Infrastructure.Rules.CharacterSheets
 
 <PageTitle>Character sheet editor · Aetheric GM</PageTitle>
-<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Character sheet editor</h1><p>@(descriptor?.Name ?? "Unknown ruleset") · @Version</p></div><button class="primary" @onclick="SaveAsync">Save draft</button></header>
+<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Character sheet editor</h1><label>Ruleset <select value="@SelectedRuleset" @onchange="SelectRuleset"><option value="">Select a ruleset</option>@foreach (var ruleset in availableRulesets) { <option value="@ruleset.Reference.ToString()">@ruleset.Name · @ruleset.Reference.Version</option> }</select></label></div><button class="primary" @onclick="SaveAsync">Save draft</button></header>
 
 @if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
 @if (descriptor is null) { <section class="panel"><h2>Ruleset unavailable</h2><p>The requested ruleset is not installed in this catalog.</p></section> }
@@ -40,11 +45,31 @@ else
 @code {
  [Parameter] public string RulesetId { get; set; } = "";
  [Parameter] public string Version { get; set; } = "";
- private RulesetReference? reference; private RulesetDescriptor? descriptor; private List<EditableSection> sections = []; private string? message; private bool hasError;
+ private RulesetReference? reference; private RulesetDescriptor? descriptor; private List<EditableSection> sections = []; private IReadOnlyList<RulesetDescriptor> availableRulesets = []; private string? message; private bool hasError;
+ private ICharacterSheetDefinitionStore activeStore = default!;
+ private string SelectedRuleset => reference?.ToString() ?? "";
  protected override async Task OnParametersSetAsync()
  {
-  try { reference = new RulesetReference(RulesetId, Version); descriptor = Catalog.Resolve(reference); var definition = descriptor is null ? null : await Store.GetAsync(reference); sections = definition?.Sections.Select(EditableSection.From).ToList() ?? []; }
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var ownerSubjectId = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   var packages = ownerSubjectId is null ? [] : await PackageInstaller.ListAsync(ownerSubjectId);
+   var installedRulesets = ownerSubjectId is null ? [] : await PackageInstaller.ListRulesetsAsync(ownerSubjectId);
+   availableRulesets = Catalog.List().Concat(installedRulesets).GroupBy(item => item.Reference).Select(group => group.First()).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+   reference = new RulesetReference(RulesetId, Version);
+   descriptor = availableRulesets.FirstOrDefault(item => item.Reference == reference);
+   var package = packages.FirstOrDefault(item => item.Ruleset == reference);
+   activeStore = package is null ? Store : new FileCharacterSheetDefinitionStore(package.PackagePath, new FileRulesCatalog(package.PackagePath), true);
+   var definition = descriptor is null ? null : await activeStore.GetAsync(reference);
+   sections = definition?.Sections.Select(EditableSection.From).ToList() ?? [];
+  }
   catch (Exception ex) when (ex is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { descriptor = null; message = ex.Message; hasError = true; }
+ }
+ private void SelectRuleset(ChangeEventArgs eventArgs)
+ {
+  var selected = availableRulesets.FirstOrDefault(item => item.Reference.ToString() == eventArgs.Value?.ToString());
+  if (selected is not null) Navigation.NavigateTo($"/rulesets/{selected.Reference.Id}/{selected.Reference.Version}/character-sheet");
  }
  private void AddSection() { var number = sections.Count + 1; sections.Add(new() { Key = $"section-{number}", Label = $"Section {number}" }); }
  private void RemoveSection(int index) => sections.RemoveAt(index);
@@ -53,7 +78,7 @@ else
  private async Task SaveAsync()
  {
   if (reference is null || descriptor is null) return;
-  try { await Store.SaveAsync(BuildDefinition(reference)); message = "Draft saved."; hasError = false; }
+  try { await activeStore.SaveAsync(BuildDefinition(reference)); message = "Draft saved to the local package copy."; hasError = false; }
   catch (Exception ex) when (ex is ArgumentException or IOException) { message = ex.Message; hasError = true; }
  }
  private CharacterSheetDefinition BuildDefinition(RulesetReference ruleset)

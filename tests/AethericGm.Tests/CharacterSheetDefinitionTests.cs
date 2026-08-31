@@ -53,4 +53,23 @@ public sealed class CharacterSheetDefinitionTests
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
+
+    [Fact]
+    public async Task File_store_round_trips_a_definition_in_an_installed_package_root()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"aetheric-package-sheet-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new FileCharacterSheetDefinitionStore(root, flatPackageLayout: true);
+            var definition = new CharacterSheetDefinition(ExampleRules,
+                [new CharacterSheetSection("identity", "Identity", [new CharacterSheetField("name", "Name", RecordValueKind.Text)])]);
+
+            await store.SaveAsync(definition);
+
+            Assert.True(File.Exists(Path.Combine(root, "character-sheet.json")));
+            var loaded = await store.GetAsync(ExampleRules);
+            Assert.Equal("name", Assert.Single(Assert.Single(loaded!.Sections).Fields).Key);
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
 }

@@ -10,7 +10,13 @@ public sealed class FileCharacterSheetDefinitionStore : ICharacterSheetDefinitio
 {
     private readonly string rootPath;
     private readonly IRulesCatalog? catalog;
-    public FileCharacterSheetDefinitionStore(string rootPath, IRulesCatalog? catalog = null) { this.rootPath = rootPath; this.catalog = catalog; }
+    private readonly bool flatPackageLayout;
+    public FileCharacterSheetDefinitionStore(string rootPath, IRulesCatalog? catalog = null, bool flatPackageLayout = false)
+    {
+        this.rootPath = rootPath;
+        this.catalog = catalog;
+        this.flatPackageLayout = flatPackageLayout;
+    }
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -40,7 +46,9 @@ public sealed class FileCharacterSheetDefinitionStore : ICharacterSheetDefinitio
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
-    private string PathFor(RulesetReference ruleset) => Path.Combine(rootPath, ruleset.Id, ruleset.Version, "character-sheet.json");
+    private string PathFor(RulesetReference ruleset) => flatPackageLayout
+        ? Path.Combine(rootPath, "character-sheet.json")
+        : Path.Combine(rootPath, ruleset.Id, ruleset.Version, "character-sheet.json");
     private void Validate(CharacterSheetDefinition definition)
     {
         if (catalog is null) return;

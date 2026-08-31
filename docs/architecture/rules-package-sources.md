@@ -23,7 +23,7 @@ Rules package source
 - a Git repository for public or private distribution;
 - a managed or bundled source reserved for content Aetheric GM may redistribute.
 
-The Rules Catalog reads only successfully installed packages from the managed local cache. It does not clone repositories, prompt for credentials, follow branches, or mutate source working trees.
+The Rules Catalog reads only successfully installed packages from the managed local cache. It does not clone repositories, prompt for credentials, follow branches, or mutate upstream source working trees. Authoring tools may edit the installed local working copy; contributing those changes upstream is a separate workflow.
 
 ## Git acquisition
 
@@ -39,7 +39,7 @@ Acquisition must not execute hooks, package scripts, build steps, or code from t
 
 A candidate revision is fully validated before it becomes visible to campaigns. Validation includes its manifest, record-type registry, rules records, character-sheet definitions, internal references, supported format version, and package identity. Installation fails without disturbing the currently installed package when validation fails.
 
-Installed content is copied into an application-managed cache rather than read continuously from the source checkout. This provides stable offline behavior, prevents later source edits from changing a running campaign, and allows a private repository to become temporarily unavailable without invalidating an authorized local installation.
+Installed content is copied into an application-managed local working area rather than read continuously from the source checkout. This provides stable offline behavior, prevents later upstream source edits from changing a running campaign, and allows a private repository to become temporarily unavailable without invalidating an authorized local installation. Explicit edits made through Aetheric GM affect only this local copy and do not alter or contribute to the upstream repository.
 
 Installation is initiated from the Campaign editor in v0.1, but the validated package is stored once in the owning user's managed cache. A campaign does not own or duplicate package files. It stores only its selected `RulesetReference`; installed-package provenance maintains the association with its source and pinned commit.
 
