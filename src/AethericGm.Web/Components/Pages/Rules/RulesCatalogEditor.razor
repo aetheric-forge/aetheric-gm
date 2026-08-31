@@ -11,20 +11,21 @@ else
  <div class="catalog-layout">
   <aside class="catalog-tree panel">
    <div class="catalog-heading"><div><p class="eyebrow">Rules catalog</p><h2>Contents</h2></div><button class="quiet" @onclick="AddSection">Add section</button></div>
+   @if (catalogSections.All(section => section.Key != "character-creation")) { <button class="quiet" @onclick="AddCharacterCreation">Add Character Creation starter</button> }
    @if (catalogSections.Count == 0)
    {
-    <p>No catalog sections yet.</p><button class="primary" @onclick="AddCharacterCreation">Add Character Creation</button>
+    <p>No catalog sections yet. Start with Character Creation or add a blank section.</p>
    }
    @foreach (var section in catalogSections)
    {
     <div class="catalog-section">
-     <div class="catalog-section-fields"><input aria-label="Section key" @bind="section.Key" /><input aria-label="Section label" @bind="section.Label" /><button class="danger" @onclick="() => catalogSections.Remove(section)">Remove</button></div>
+     <div class="catalog-section-fields"><label>Section key<input aria-label="Section key" @bind="section.Key" /></label><label>Section label<input aria-label="Section label" @bind="section.Label" /></label><button class="danger" @onclick="() => catalogSections.Remove(section)">Remove</button></div>
      @foreach (var item in section.Items)
      {
       <div class="catalog-item @(selectedItem == item ? "selected" : "")">
        @if (item.Kind == RulesCatalogItemKind.RecordCatalog) { <button class="catalog-open" @onclick="() => SelectItem(item)">@item.Label</button> } else { <strong class="catalog-open">@item.Label group</strong> }
-       <input aria-label="Catalog key" @bind="item.Key" /><input aria-label="Catalog label" @bind="item.Label" />
-       @if (item.Kind == RulesCatalogItemKind.RecordCatalog) { <select aria-label="Record type" @bind="item.RecordType">@foreach (var type in currentDescriptor.RecordTypes.List()) { <option value="@type.Key">@type.Label</option> }</select> }
+       <label>Catalog key<input aria-label="Catalog key" @bind="item.Key" /></label><label>Catalog label<input aria-label="Catalog label" @bind="item.Label" /></label>
+       @if (item.Kind == RulesCatalogItemKind.RecordCatalog) { <label>Record type<select aria-label="Record type" value="@item.RecordType" @onchange="eventArgs => ChangeRecordType(item, eventArgs)"><option value="">Select a record type</option>@foreach (var type in currentDescriptor.RecordTypes.List()) { <option value="@type.Key">@type.Label</option> }</select></label> }
        <button class="danger" @onclick="() => section.Items.Remove(item)">Remove</button>
       </div>
      }
@@ -121,13 +122,19 @@ else
  private void AddCharacterCreation() { var section = new EditableCatalogSection { Key = "character-creation", Label = "Character Creation" }; var ancestry = currentDescriptor.RecordTypes.Find("ancestry") is not null ? "ancestry" : currentDescriptor.RecordTypes.List().FirstOrDefault()?.Key ?? ""; section.Items.Add(new() { Key = "ancestries", Label = "Ancestries", RecordType = ancestry }); catalogSections.Add(section); selectedItem = section.Items[0]; }
  private void AddRecordCatalog(EditableCatalogSection section) { var type = currentDescriptor.RecordTypes.List().FirstOrDefault(); section.Items.Add(new() { Key = $"catalog-{section.Items.Count + 1}", Label = $"Catalog {section.Items.Count + 1}", RecordType = type?.Key ?? "" }); }
  private void SelectItem(EditableCatalogItem item) { selectedItem = item; selectedRecord = null; }
+ private void ChangeRecordType(EditableCatalogItem item, ChangeEventArgs eventArgs) { item.RecordType = eventArgs.Value?.ToString() ?? ""; message = null; hasError = false; }
  private void AddRecord() { if (selectedItem is null) return; selectedRecord = EditableRulesRecord.Create(selectedItem.RecordType); }
  private void SelectRecord(RulesRecord record) => selectedRecord = EditableRulesRecord.From(record, currentDescriptor.RecordTypes.FieldsFor(record.RecordType));
 
  private async Task SaveCatalogAsync()
  {
   if (PackagePath is null) return;
-  try { var catalog = new RulesCatalogDefinition(catalogSections.Select(section => section.Build())); await new FileRulesPackageEditor(PackagePath).SaveCatalogAsync(currentDescriptor.Reference, catalog); Reload("Catalog saved to the local package copy."); }
+  try
+  {
+   var missingType = catalogSections.SelectMany(section => section.Items).FirstOrDefault(item => item.Kind == RulesCatalogItemKind.RecordCatalog && string.IsNullOrWhiteSpace(item.RecordType));
+   if (missingType is not null) throw new InvalidDataException($"Choose a record type for '{missingType.Label}' before saving the catalog.");
+   var catalog = new RulesCatalogDefinition(catalogSections.Select(section => section.Build())); await new FileRulesPackageEditor(PackagePath).SaveCatalogAsync(currentDescriptor.Reference, catalog); Reload("Catalog saved to the local package copy.");
+  }
   catch (Exception ex) when (ex is ArgumentException or InvalidDataException or IOException or JsonException) { Fail(ex); }
  }
 

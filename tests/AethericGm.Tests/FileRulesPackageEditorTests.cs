@@ -53,4 +53,14 @@ public sealed class FileRulesPackageEditorTests : IDisposable
 
         Assert.Equal(original, File.ReadAllText(Path.Combine(package, "records.json")));
     }
+
+    [Fact]
+    public async Task Saves_an_empty_section_before_record_catalogs_are_added()
+    {
+        var catalog = new RulesCatalogDefinition([new RulesCatalogSection("ancestry", "Ancestry")]);
+
+        await new FileRulesPackageEditor(package).SaveCatalogAsync(Reference, catalog);
+
+        Assert.Equal("ancestry", Assert.Single(new FileRulesCatalog(package).Resolve(Reference)!.Catalog.Sections).Key);
+    }
 }

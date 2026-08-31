@@ -14,7 +14,7 @@
 @if (descriptor is null) { <section class="panel"><h2>Ruleset unavailable</h2><p>The requested ruleset is not installed in this catalog.</p></section> }
 else
 {
- <RulesCatalogEditor Descriptor="descriptor" PackagePath="activePackagePath" />
+ <RulesCatalogEditor Descriptor="descriptor" PackagePath="@activePackagePath" />
  <section class="definition-note panel"><div><strong>Character sheet definition</strong><p>Build the stored shape of a character sheet. Catalog records provide choices such as ancestries.</p></div><button class="primary" @onclick="SaveAsync">Save sheet</button></section>
  <div class="sheet-editor">
   @for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++)

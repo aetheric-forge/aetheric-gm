@@ -34,16 +34,26 @@ public sealed class FileRulesPackageEditor(string packagePath)
     private async Task SaveAsync<T>(RulesetReference ruleset, string fileName, T document, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(ruleset);
-        var validationRoot = Path.Combine(Path.GetTempPath(), $"aetheric-gm-rules-edit-{Guid.NewGuid():N}");
+        if (!Path.IsPathFullyQualified(packagePath)) throw new ArgumentException("Installed package path must be fully qualified.", nameof(packagePath));
+        if (!Directory.Exists(packagePath)) throw new DirectoryNotFoundException($"Installed package directory '{packagePath}' was not found.");
+        var packageParent = Path.GetDirectoryName(Path.GetFullPath(packagePath))
+            ?? throw new InvalidDataException("Installed package directory has no parent directory.");
+        var validationRoot = Path.Combine(packageParent, $".{Path.GetFileName(packagePath)}-edit-{Guid.NewGuid():N}");
         Directory.CreateDirectory(validationRoot);
         try
         {
-            foreach (var source in PackageFiles.Select(file => Path.Combine(packagePath, file)).Where(File.Exists))
-                File.Copy(source, Path.Combine(validationRoot, Path.GetFileName(source)));
+            foreach (var file in PackageFiles)
+            {
+                var source = Path.Combine(packagePath, file);
+                if (File.Exists(source)) File.Copy(source, Path.Combine(validationRoot, file));
+            }
+            if (!File.Exists(Path.Combine(validationRoot, "manifest.json")))
+                throw new InvalidDataException("The installed package has no manifest.json to validate.");
             await WriteDocumentAsync(Path.Combine(validationRoot, fileName), document, ct);
-            var validated = new FileRulesCatalog(validationRoot).List().SingleOrDefault(candidate =>
+            var candidates = new FileRulesCatalog(validationRoot).List();
+            var validated = candidates.SingleOrDefault(candidate =>
                 candidate.Reference.Id == ruleset.Id && candidate.Reference.Version == ruleset.Version)
-                ?? throw new InvalidDataException($"Edited package does not contain ruleset '{ruleset}'.");
+                ?? throw new InvalidDataException($"Edited package validation found '{string.Join(", ", candidates.Select(candidate => candidate.Reference.ToString()))}' instead of '{ruleset}'.");
             _ = validated;
 
             var target = Path.Combine(packagePath, fileName);
