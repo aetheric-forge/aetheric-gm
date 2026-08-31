@@ -11,6 +11,9 @@ Aetheric GM is a rules-neutral, single-GM campaign helper. Priority is a trustwo
 | P1 | Rules record types | Register reusable, inherited record shapes with typed fields and cardinality. |
 | P1 | Published rules records | Load immutable rules content such as ancestries and abilities with stable references. |
 | P1 | Composable character sheets | Embed character-owned records and reference published rules records from sheet fields. |
+| P1 | Hierarchical rules catalog | Organize declarative rules records into authoring and consumption sections without duplicating their content. |
+| P1 | Local rules catalog editing | Edit schema-driven catalog entries and published records as validated JSON in the installed local package copy. |
+| P1 | Character creation skeleton | Discover character-creation catalogs and retain stable references to selected rules records such as ancestries. |
 | P1 | User profile and SSH credentials | Securely manage profile-owned private SSH credentials and verified Git hosts. |
 | P1 | External rules packages | From a campaign, validate and install separately licensed packages from pinned public/private SSH Git revisions. |
 | P1 | Campaign rules selection | Select an installed ruleset and reopen the workspace from the local cache. |

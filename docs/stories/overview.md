@@ -21,6 +21,13 @@ Later package-lifecycle stories are:
 10. [Manage installed rules packages](10-manage-rules-packages.md)
 11. [Protect licensed rules during export](11-protect-rules-during-export.md)
 
+The next rules-authoring and character-creation stories are:
+
+12. [Organize rules content in a catalog](12-organize-rules-catalog.md)
+13. [Edit a local rules catalog](13-edit-rules-catalog.md)
+14. [Save local rules edits safely](14-save-local-rules-edits-safely.md)
+15. [Choose an ancestry during character creation](15-choose-character-ancestry.md)
+
 An original demonstration package provides the distributable proving examples: attributes contain structured values and temporary modifiers, while heritages are published rules records that can carry flavour text and grant abilities. A separately obtained Shadowdark package may use the same engine, but Shadowdark content is not part of the application repository or release artifacts without an appropriate redistribution license.
 
 Calculations, automatic effects, creation procedures, and persisted character values are intentionally deferred. The purpose of this sequence is to establish the vocabulary those later capabilities will use.
