@@ -6,12 +6,12 @@ As a rules author, I want to define reusable record types within a versioned rul
 
 A ruleset package can register immutable record-type definitions. The catalog resolves their inheritance and exposes the valid types to authoring tools.
 
-The first Shadowdark definitions should be sufficient to express:
+The original demonstration definitions should be sufficient to express:
 
 - an `attribute` with a value, optional bounds, optional bonus, and repeated temporary modifiers;
 - a `modifier` with a source, amount, optional duration, and optional note;
 - a named `ability` with descriptive text;
-- a named `ancestry` with flavour text and repeated ability references.
+- a named `heritage` with flavour text and repeated ability references.
 
 ## Acceptance criteria
 

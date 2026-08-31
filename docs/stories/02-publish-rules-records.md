@@ -6,7 +6,7 @@ As a rules author, I want to publish records conforming to registered record typ
 
 A versioned ruleset can contain immutable rules records. Each record has a stable identity and typed values validated against its registered record type.
 
-For Shadowdark, an ancestry such as `elf` can contain its name and flavour text and refer to one or more separately published ability records.
+For the original demonstration package, a heritage can contain its name and flavour text and refer to one or more separately published ability records.
 
 ## Acceptance criteria
 

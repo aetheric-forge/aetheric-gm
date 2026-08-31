@@ -1,6 +1,6 @@
 # Rules catalog
 
-The Rules Catalog discovers declarative, versioned ruleset packages. A campaign stores only an optional stable `RulesetReference` consisting of an ID and version.
+The Rules Catalog discovers validated, locally installed, declarative ruleset packages. A campaign stores only an optional stable `RulesetReference` consisting of an ID and version. Package acquisition is a separate concern described in [Rules package sources](rules-package-sources.md).
 
 The initial catalog reads `manifest.json` files from the configured catalog directory. Manifests contain identity and presentation metadata only. Unknown properties, invalid IDs or versions, and duplicate references are rejected when the application starts.
 
@@ -18,14 +18,19 @@ Those rules documents are loaded only after a package has been identified and va
 
 ```json
 {
-  "id": "shadowdark",
+  "id": "example-fantasy",
   "version": "1.0.0",
-  "name": "Shadowdark RPG",
-  "description": "Optional human-readable catalog description."
+  "name": "Example Fantasy",
+  "description": "Optional human-readable catalog description.",
+  "license": {
+    "name": "License or proprietary-use label",
+    "url": "https://example.test/license",
+    "redistribution": "prohibited"
+  }
 }
 ```
 
-IDs use lowercase kebab-case. Versions use semantic version format. Published package versions should be treated as immutable.
+IDs use lowercase kebab-case. Versions use semantic version format. Published package versions should be treated as immutable. License metadata is advisory package provenance, not a substitute for legal permission or technical rights enforcement.
 
 ## Rules records
 
@@ -33,8 +38,8 @@ The rules catalog provides a declarative record system for describing reusable g
 
 The model separates three things that have different ownership and lifetimes:
 
-- a **record type** defines a reusable shape, such as `attribute`, `modifier`, `ability`, or `ancestry`;
-- a **rules record** is a published instance owned by the versioned ruleset, such as the `elf` ancestry or `keen-senses` ability;
+- a **record type** defines a reusable shape, such as `attribute`, `modifier`, `ability`, or `heritage`;
+- a **rules record** is a published instance owned by the versioned ruleset, such as a particular heritage or ability;
 - a **character record** is mutable character-owned state conforming to a record type, such as a Strength attribute and its temporary modifiers.
 
 Record and field keys use lowercase kebab-case and are stable identifiers. Labels and descriptions are presentation content and must never be used as references.
@@ -59,7 +64,7 @@ Fields have an independent cardinality of `one`, `optional`, `many`, or `one-or-
 
 Record and reference fields name the registered record type they accept. A reference accepting a parent type also accepts records of its descendant types.
 
-For example, an `attribute` may embed repeated `modifier` records, while an `ancestry` field may reference a published `ancestry` rules record whose fields include flavour text and references to `ability` records.
+For example, an `attribute` may embed repeated `modifier` records, while a `heritage` field may reference a published `heritage` rules record whose fields include flavour text and references to `ability` records. A ruleset may define a more specific concept, such as Shadowdark's `ancestry`, entirely within its external package.
 
 ### Published rules records
 

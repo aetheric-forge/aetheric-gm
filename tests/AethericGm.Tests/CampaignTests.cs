@@ -13,7 +13,7 @@ public class CampaignTests
     }
     [Fact] public void Ruleset_selection_is_explicit_and_versioned()
     {
-        var campaign = Campaign.Create("Ashes", DateTimeOffset.UtcNow); var reference = new RulesetReference("shadowdark", "1.0.0");
+        var campaign = Campaign.Create("Ashes", DateTimeOffset.UtcNow); var reference = new RulesetReference("example-fantasy", "1.0.0");
         campaign.SelectRuleset(reference, DateTimeOffset.UtcNow); Assert.Equal(reference, campaign.Ruleset);
         campaign.SelectRuleset(null, DateTimeOffset.UtcNow); Assert.Null(campaign.Ruleset);
     }

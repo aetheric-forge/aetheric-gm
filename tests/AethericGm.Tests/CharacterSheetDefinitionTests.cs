@@ -7,13 +7,13 @@ namespace AethericGm.Tests;
 
 public sealed class CharacterSheetDefinitionTests
 {
-    private static readonly RulesetReference Shadowdark = new("shadowdark", "1.0.0");
+    private static readonly RulesetReference ExampleRules = new("example-fantasy", "1.0.0");
 
     [Fact]
     public void Rejects_invalid_keys_duplicates_and_missing_record_types()
     {
         Assert.Throws<ArgumentException>(() => new CharacterSheetField("Armor Class", "Armor Class", RecordValueKind.Integer));
-        Assert.Throws<ArgumentException>(() => new CharacterSheetField("ancestry", "Ancestry", RecordValueKind.RulesReference));
+        Assert.Throws<ArgumentException>(() => new CharacterSheetField("heritage", "Heritage", RecordValueKind.RulesReference));
         Assert.Throws<ArgumentException>(() => new CharacterSheetField("name", "Name", RecordValueKind.Text, recordType: "attribute"));
         var field = new CharacterSheetField("name", "Name", RecordValueKind.Text);
         Assert.Throws<ArgumentException>(() => new CharacterSheetSection("identity", "Identity", [field, field]));
@@ -23,9 +23,9 @@ public sealed class CharacterSheetDefinitionTests
     public void Validates_record_targets_against_a_registry()
     {
         var registry = new RecordTypeRegistry([new RecordTypeDefinition("attribute", "Attribute", [])]);
-        var valid = new CharacterSheetDefinition(Shadowdark, [new CharacterSheetSection("attributes", "Attributes", [new CharacterSheetField("strength", "Strength", RecordValueKind.Record, RecordCardinality.Optional, "attribute")])]);
+        var valid = new CharacterSheetDefinition(ExampleRules, [new CharacterSheetSection("attributes", "Attributes", [new CharacterSheetField("strength", "Strength", RecordValueKind.Record, RecordCardinality.Optional, "attribute")])]);
         valid.ValidateAgainst(registry);
-        var invalid = new CharacterSheetDefinition(Shadowdark, [new CharacterSheetSection("identity", "Identity", [new CharacterSheetField("ancestry", "Ancestry", RecordValueKind.RulesReference, RecordCardinality.Optional, "ancestry")])]);
+        var invalid = new CharacterSheetDefinition(ExampleRules, [new CharacterSheetSection("identity", "Identity", [new CharacterSheetField("heritage", "Heritage", RecordValueKind.RulesReference, RecordCardinality.Optional, "heritage")])]);
         Assert.Throws<ArgumentException>(() => invalid.ValidateAgainst(registry));
     }
 
@@ -36,20 +36,20 @@ public sealed class CharacterSheetDefinitionTests
         try
         {
             var store = new FileCharacterSheetDefinitionStore(root);
-            var definition = new CharacterSheetDefinition(Shadowdark,
+            var definition = new CharacterSheetDefinition(ExampleRules,
             [
                 new CharacterSheetSection("identity", "Identity",
                 [
                     new CharacterSheetField("name", "Name", RecordValueKind.Text),
-                    new CharacterSheetField("ancestry", "Ancestry", RecordValueKind.RulesReference, RecordCardinality.Optional, "ancestry")
+                    new CharacterSheetField("heritage", "Heritage", RecordValueKind.RulesReference, RecordCardinality.Optional, "heritage")
                 ])
             ]);
             await store.SaveAsync(definition);
-            var loaded = await store.GetAsync(Shadowdark);
+            var loaded = await store.GetAsync(ExampleRules);
             Assert.NotNull(loaded); Assert.Equal("identity", Assert.Single(loaded.Sections).Key);
             Assert.Equal(2, loaded.Sections[0].Fields.Count);
             Assert.Equal(RecordCardinality.Optional, loaded.Sections[0].Fields[1].Cardinality);
-            Assert.Equal("ancestry", loaded.Sections[0].Fields[1].RecordType);
+            Assert.Equal("heritage", loaded.Sections[0].Fields[1].RecordType);
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
