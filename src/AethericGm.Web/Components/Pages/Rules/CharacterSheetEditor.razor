@@ -1,0 +1,68 @@
+@page "/rulesets/{RulesetId}/{Version}/character-sheet"
+@inject IRulesCatalog Catalog
+@inject ICharacterSheetDefinitionStore Store
+
+<PageTitle>Character sheet editor · Aetheric GM</PageTitle>
+<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Character sheet editor</h1><p>@(descriptor?.Name ?? "Unknown ruleset") · @Version</p></div><button class="primary" @onclick="SaveAsync">Save draft</button></header>
+
+@if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
+@if (descriptor is null) { <section class="panel"><h2>Ruleset unavailable</h2><p>The requested ruleset is not installed in this catalog.</p></section> }
+else
+{
+ <section class="definition-note panel"><strong>Definition only</strong><p>Build the shape of a character sheet here. Creation procedures, calculations, and book text remain separate.</p></section>
+ <div class="sheet-editor">
+  @for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++)
+  {
+   var currentSection = sectionIndex;
+   <section class="sheet-section panel">
+    <div class="section-heading"><div class="field-row"><label>Section key <input @bind="sections[currentSection].Key" /></label><label>Section label <input @bind="sections[currentSection].Label" /></label></div><button class="danger" @onclick="() => RemoveSection(currentSection)">Remove section</button></div>
+    @for (var fieldIndex = 0; fieldIndex < sections[currentSection].Fields.Count; fieldIndex++)
+    {
+     var currentField = fieldIndex; var field = sections[currentSection].Fields[currentField];
+     <div class="field-definition">
+      <label>Key <input @bind="field.Key" /></label><label>Label <input @bind="field.Label" /></label>
+      <label>Type <select @bind="field.Type">@foreach (var type in Enum.GetValues<CharacterFieldType>()) { <option value="@type">@type</option> }</select></label>
+      <label class="checkbox-label"><input type="checkbox" @bind="field.Required" /> Required</label>
+      @if (field.Type == CharacterFieldType.Choice) { <label class="choices">Choices <input @bind="field.Choices" placeholder="Comma-separated choices" /></label> }
+      <button class="danger" @onclick="() => RemoveField(currentSection, currentField)">Remove</button>
+     </div>
+    }
+    <button class="quiet" @onclick="() => AddField(currentSection)">Add field</button>
+   </section>
+  }
+  <button class="quiet add-section" @onclick="AddSection">Add section</button>
+ </div>
+}
+
+@code {
+ [Parameter] public string RulesetId { get; set; } = "";
+ [Parameter] public string Version { get; set; } = "";
+ private RulesetReference? reference; private RulesetDescriptor? descriptor; private List<EditableSection> sections = []; private string? message; private bool hasError;
+ protected override async Task OnParametersSetAsync()
+ {
+  try { reference = new RulesetReference(RulesetId, Version); descriptor = Catalog.Resolve(reference); var definition = descriptor is null ? null : await Store.GetAsync(reference); sections = definition?.Sections.Select(EditableSection.From).ToList() ?? []; }
+  catch (Exception ex) when (ex is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { descriptor = null; message = ex.Message; hasError = true; }
+ }
+ private void AddSection() { var number = sections.Count + 1; sections.Add(new() { Key = $"section-{number}", Label = $"Section {number}" }); }
+ private void RemoveSection(int index) => sections.RemoveAt(index);
+ private void AddField(int section) { var number = sections[section].Fields.Count + 1; sections[section].Fields.Add(new() { Key = $"field-{number}", Label = $"Field {number}" }); }
+ private void RemoveField(int section, int field) => sections[section].Fields.RemoveAt(field);
+ private async Task SaveAsync()
+ {
+  if (reference is null || descriptor is null) return;
+  try { await Store.SaveAsync(BuildDefinition(reference)); message = "Draft saved."; hasError = false; }
+  catch (Exception ex) when (ex is ArgumentException or IOException) { message = ex.Message; hasError = true; }
+ }
+ private CharacterSheetDefinition BuildDefinition(RulesetReference ruleset)
+ {
+  var builtSections = sections.Select(section => new CharacterSheetSection(
+   section.Key,
+   section.Label,
+   section.Fields.Select(field => new CharacterSheetField(
+    field.Key, field.Label, field.Type, field.Required, ParseChoices(field)))));
+  return new CharacterSheetDefinition(ruleset, builtSections);
+ }
+ private static IEnumerable<string> ParseChoices(EditableField field) => field.Type == CharacterFieldType.Choice ? field.Choices.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) : [];
+ private sealed class EditableSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableField> Fields { get; set; } = []; public static EditableSection From(CharacterSheetSection value) => new() { Key = value.Key, Label = value.Label, Fields = value.Fields.Select(EditableField.From).ToList() }; }
+ private sealed class EditableField { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public CharacterFieldType Type { get; set; } public bool Required { get; set; } public string Choices { get; set; } = ""; public static EditableField From(CharacterSheetField value) => new() { Key = value.Key, Label = value.Label, Type = value.Type, Required = value.Required, Choices = string.Join(", ", value.Choices) }; }
+}

@@ -3,6 +3,8 @@ using AethericGm.Core.Campaigns;
 using AethericGm.Infrastructure.Campaigns;
 using AethericGm.Core.Rules;
 using AethericGm.Infrastructure.Rules;
+using AethericGm.Core.Rules.CharacterSheets;
+using AethericGm.Infrastructure.Rules.CharacterSheets;
 using AethericGm.Web.Composition;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
@@ -59,6 +61,7 @@ await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
 builder.Services.AddSingleton<IRulesCatalog>(new FileRulesCatalog(rulesCatalogPath));
+builder.Services.AddSingleton<ICharacterSheetDefinitionStore>(new FileCharacterSheetDefinitionStore(rulesCatalogPath));
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(

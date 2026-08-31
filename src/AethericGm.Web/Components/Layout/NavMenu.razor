@@ -1,5 +1,5 @@
 <a class="brand" href="/"><span class="brand-mark">AG</span><span><strong>Aetheric GM</strong><small>Campaign desk</small></span></a>
-<nav><NavLink href="" Match="NavLinkMatch.All">Campaigns</NavLink></nav>
+<nav><NavLink href="" Match="NavLinkMatch.All">Campaigns</NavLink><NavLink href="rulesets/shadowdark/1.0.0/character-sheet">Rules editor</NavLink></nav>
 <AuthorizeView>
  <Authorized Context="identity"><div class="operator"><span class="operator-mark">GM</span><span><strong>@(identity.User.Identity?.Name ?? "Game Master")</strong><small>Forge identity</small></span></div><form method="post" action="/account/logout"><AntiforgeryToken /><button class="sign-out" type="submit">Sign out</button></form></Authorized>
 </AuthorizeView>

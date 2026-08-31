@@ -8,6 +8,9 @@ Aetheric GM is a rules-neutral, single-GM campaign helper. Priority is a trustwo
 |---|---|---|
 | P0 | Campus foundation | Standalone Campus boundary, runtime project references, documented integration seam, buildable app. |
 | P0 | Campaign workspace | Create, rename, open, edit, archive, restore, and retain selection. |
+| P1 | Rules record types | Register reusable, inherited record shapes with typed fields and cardinality. |
+| P1 | Published rules records | Load immutable rules content such as ancestries and abilities with stable references. |
+| P1 | Composable character sheets | Embed character-owned records and reference published rules records from sheet fields. |
 | P1 | Session workspace | Draft/running/completed sessions with prep, live notes, and recap. |
 | P1 | People and factions | Campaign-scoped records, tags, relationships, distinct secrets, fast retrieval. |
 | P1 | Places | Nested locations plus explicit non-containment relationships. |
@@ -31,4 +34,4 @@ Authentication/authorization UI, generative AI, third-party rules compendia, mul
 
 ## Current slice
 
-Phase 0 plus campaign workspace. Archived campaigns are hidden by default, selection is persisted, and optional system, setting, and summary metadata can be edited.
+Phase 0 plus campaign workspace, followed by the rules-authoring sequence described in [`docs/stories`](../stories/overview.md). Archived campaigns are hidden by default, selection is persisted, and optional system, setting, and summary metadata can be edited.
