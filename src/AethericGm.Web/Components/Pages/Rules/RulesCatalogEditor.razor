@@ -1,0 +1,187 @@
+@using System.Text.Json
+@using AethericGm.Core.Rules.Catalog
+@using AethericGm.Infrastructure.Rules
+
+@if (string.IsNullOrWhiteSpace(PackagePath))
+{
+ <section class="panel catalog-empty"><h2>Catalog editing unavailable</h2><p>Install this ruleset as a local package before editing its catalog and published records.</p></section>
+}
+else
+{
+ <div class="catalog-layout">
+  <aside class="catalog-tree panel">
+   <div class="catalog-heading"><div><p class="eyebrow">Rules catalog</p><h2>Contents</h2></div><button class="quiet" @onclick="AddSection">Add section</button></div>
+   @if (catalogSections.All(section => section.Key != "character-creation")) { <button class="quiet" @onclick="AddCharacterCreation">Add Character Creation starter</button> }
+   @if (catalogSections.Count == 0)
+   {
+    <p>No catalog sections yet. Start with Character Creation or add a blank section.</p>
+   }
+   @foreach (var section in catalogSections)
+   {
+    <div class="catalog-section">
+     <div class="catalog-section-fields"><label>Section key<input aria-label="Section key" @bind="section.Key" /></label><label>Section label<input aria-label="Section label" @bind="section.Label" /></label><button class="danger" @onclick="() => catalogSections.Remove(section)">Remove</button></div>
+     @foreach (var item in section.Items)
+     {
+      <div class="catalog-item @(selectedItem == item ? "selected" : "")">
+       @if (item.Kind == RulesCatalogItemKind.RecordCatalog) { <button class="catalog-open" @onclick="() => SelectItem(item)">@item.Label</button> } else { <strong class="catalog-open">@item.Label group</strong> }
+       <label>Catalog key<input aria-label="Catalog key" @bind="item.Key" /></label><label>Catalog label<input aria-label="Catalog label" @bind="item.Label" /></label>
+       @if (item.Kind == RulesCatalogItemKind.RecordCatalog) { <label>Record type<select aria-label="Record type" value="@item.RecordType" @onchange="eventArgs => ChangeRecordType(item, eventArgs)"><option value="">Select a record type</option>@foreach (var type in currentDescriptor.RecordTypes.List()) { <option value="@type.Key">@type.Label</option> }</select></label> }
+       <button class="danger" @onclick="() => section.Items.Remove(item)">Remove</button>
+      </div>
+     }
+     <button class="quiet" @onclick="() => AddRecordCatalog(section)">Add record catalog</button>
+    </div>
+   }
+   <button class="primary catalog-save" @onclick="SaveCatalogAsync">Save catalog</button>
+  </aside>
+
+  <section class="record-workspace panel">
+   @if (selectedItem is null)
+   {
+    <div class="catalog-empty"><h2>Select a record catalog</h2><p>Choose a catalog entry to edit its published JSON records.</p></div>
+   }
+   else
+   {
+    var recordType = currentDescriptor.RecordTypes.Find(selectedItem.RecordType);
+    <div class="record-heading"><div><p class="eyebrow">@selectedItem.Label</p><h2>@(recordType?.Label ?? selectedItem.RecordType) records</h2></div><button class="quiet" @onclick="AddRecord">Add record</button></div>
+    <div class="record-editor-layout">
+     <div class="record-list">
+      @foreach (var record in RecordsForSelectedCatalog)
+      {
+       <button class="@(selectedRecord?.Original == record ? "selected" : "")" @onclick="() => SelectRecord(record)">@RecordLabel(record)<small>@record.Key</small></button>
+      }
+     </div>
+     @if (selectedRecord is not null && recordType is not null)
+     {
+      <div class="record-form">
+       <label>Stable key <input @bind="selectedRecord.Key" /></label>
+       @foreach (var field in currentDescriptor.RecordTypes.FieldsFor(selectedRecord.RecordType))
+       {
+        <div class="record-value">
+         <label>@field.Label@if (field.Cardinality is RecordCardinality.Optional or RecordCardinality.Many) { <small>Optional</small> }</label>
+         @if (field.ValueKind == RecordValueKind.Text && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
+         {
+          <textarea rows="@(field.Key.Contains("description") || field.Key.Contains("text") ? 4 : 2)" value="@selectedRecord.Get(field.Key)" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)"></textarea>
+         }
+         else if (field.ValueKind == RecordValueKind.Integer && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
+         {
+          <input type="number" value="@selectedRecord.Get(field.Key)" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)" />
+         }
+         else if (field.ValueKind == RecordValueKind.Boolean && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
+         {
+          <select value="@selectedRecord.Get(field.Key)" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)"><option value="">Not set</option><option value="true">Yes</option><option value="false">No</option></select>
+         }
+         else if (field.ValueKind == RecordValueKind.RulesReference)
+         {
+          <div class="reference-choices">
+           @foreach (var candidate in ReferenceChoices(field.RecordType!))
+           {
+            <label><input type="checkbox" checked="@selectedRecord.HasReference(field.Key, candidate)" @onchange="eventArgs => selectedRecord.ToggleReference(field.Key, candidate, (bool?)eventArgs.Value == true, field.Cardinality)" /> @RecordLabel(candidate)</label>
+           }
+          </div>
+         }
+         else
+         {
+          <textarea class="json-value" rows="4" value="@selectedRecord.Get(field.Key)" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)"></textarea>
+          <small>Enter a JSON value for this structured field.</small>
+         }
+         @if (!string.IsNullOrWhiteSpace(field.Description)) { <small>@field.Description</small> }
+        </div>
+       }
+       <div class="actions"><button class="primary" @onclick="SaveRecordAsync">Save record</button>@if (selectedRecord.Original is not null) { <button class="danger" @onclick="DeleteRecordAsync">Delete record</button> }</div>
+      </div>
+     }
+    </div>
+   }
+  </section>
+ </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
+
+@code {
+ [Parameter, EditorRequired] public RulesetDescriptor Descriptor { get; set; } = default!;
+ [Parameter] public string? PackagePath { get; set; }
+ private RulesetDescriptor currentDescriptor = default!;
+ private readonly List<EditableCatalogSection> catalogSections = [];
+ private EditableCatalogItem? selectedItem;
+ private EditableRulesRecord? selectedRecord;
+ private string? message;
+ private bool hasError;
+
+ protected override void OnParametersSet()
+ {
+  currentDescriptor = Descriptor;
+  catalogSections.Clear();
+  catalogSections.AddRange(Descriptor.Catalog.Sections.Select(EditableCatalogSection.From));
+  selectedItem = null; selectedRecord = null;
+ }
+
+ private IEnumerable<RulesRecord> RecordsForSelectedCatalog => selectedItem is null ? [] : currentDescriptor.RecordsOfType(selectedItem.RecordType);
+ private void AddSection() => catalogSections.Add(new() { Key = $"section-{catalogSections.Count + 1}", Label = $"Section {catalogSections.Count + 1}" });
+ private void AddCharacterCreation() { var section = new EditableCatalogSection { Key = "character-creation", Label = "Character Creation" }; var ancestry = currentDescriptor.RecordTypes.Find("ancestry") is not null ? "ancestry" : currentDescriptor.RecordTypes.List().FirstOrDefault()?.Key ?? ""; section.Items.Add(new() { Key = "ancestries", Label = "Ancestries", RecordType = ancestry }); catalogSections.Add(section); selectedItem = section.Items[0]; }
+ private void AddRecordCatalog(EditableCatalogSection section) { var type = currentDescriptor.RecordTypes.List().FirstOrDefault(); section.Items.Add(new() { Key = $"catalog-{section.Items.Count + 1}", Label = $"Catalog {section.Items.Count + 1}", RecordType = type?.Key ?? "" }); }
+ private void SelectItem(EditableCatalogItem item) { selectedItem = item; selectedRecord = null; }
+ private void ChangeRecordType(EditableCatalogItem item, ChangeEventArgs eventArgs) { item.RecordType = eventArgs.Value?.ToString() ?? ""; message = null; hasError = false; }
+ private void AddRecord() { if (selectedItem is null) return; selectedRecord = EditableRulesRecord.Create(selectedItem.RecordType); }
+ private void SelectRecord(RulesRecord record) => selectedRecord = EditableRulesRecord.From(record, currentDescriptor.RecordTypes.FieldsFor(record.RecordType));
+
+ private async Task SaveCatalogAsync()
+ {
+  if (PackagePath is null) return;
+  try
+  {
+   var missingType = catalogSections.SelectMany(section => section.Items).FirstOrDefault(item => item.Kind == RulesCatalogItemKind.RecordCatalog && string.IsNullOrWhiteSpace(item.RecordType));
+   if (missingType is not null) throw new InvalidDataException($"Choose a record type for '{missingType.Label}' before saving the catalog.");
+   var catalog = new RulesCatalogDefinition(catalogSections.Select(section => section.Build())); await new FileRulesPackageEditor(PackagePath).SaveCatalogAsync(currentDescriptor.Reference, catalog); Reload("Catalog saved to the local package copy.");
+  }
+  catch (Exception ex) when (ex is ArgumentException or InvalidDataException or IOException or JsonException) { Fail(ex); }
+ }
+
+ private async Task SaveRecordAsync()
+ {
+  if (PackagePath is null || selectedRecord is null) return;
+  try
+  {
+   var built = selectedRecord.Build(currentDescriptor.RecordTypes.FieldsFor(selectedRecord.RecordType));
+   var records = currentDescriptor.Records.Where(record => record != selectedRecord.Original).Append(built).ToArray();
+   await new FileRulesPackageEditor(PackagePath).SaveRecordsAsync(currentDescriptor.Reference, records);
+   Reload("Record saved to the local package copy."); selectedItem = catalogSections.SelectMany(section => section.Items).FirstOrDefault(item => currentDescriptor.RecordTypes.Accepts(item.RecordType, built.RecordType)); SelectRecord(currentDescriptor.Records.Single(record => record.RecordType == built.RecordType && record.Key == built.Key));
+  }
+  catch (Exception ex) when (ex is ArgumentException or InvalidDataException or IOException or JsonException) { Fail(ex); }
+ }
+
+ private async Task DeleteRecordAsync()
+ {
+  if (PackagePath is null || selectedRecord?.Original is null) return;
+  try { await new FileRulesPackageEditor(PackagePath).SaveRecordsAsync(currentDescriptor.Reference, currentDescriptor.Records.Where(record => record != selectedRecord.Original)); Reload("Record deleted from the local package copy."); selectedRecord = null; }
+  catch (Exception ex) when (ex is ArgumentException or InvalidDataException or IOException or JsonException) { Fail(ex); }
+ }
+
+ private void Reload(string success) { currentDescriptor = new FileRulesCatalog(PackagePath!).Resolve(currentDescriptor.Reference)!; catalogSections.Clear(); catalogSections.AddRange(currentDescriptor.Catalog.Sections.Select(EditableCatalogSection.From)); message = success; hasError = false; }
+ private void Fail(Exception exception) { message = exception.Message; hasError = true; }
+ private IEnumerable<RulesRecord> ReferenceChoices(string expectedType) => currentDescriptor.Records.Where(record => currentDescriptor.RecordTypes.Accepts(expectedType, record.RecordType));
+ private string RecordLabel(RulesRecord record) { var type = currentDescriptor.RecordTypes.Find(record.RecordType); return type?.DisplayField is { } field && record.Values.TryGetValue(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : record.Key; }
+
+ private sealed class EditableCatalogSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableCatalogItem> Items { get; } = []; public RulesCatalogSection Build() => new(Key, Label, Items.Select(item => item.Build())); public static EditableCatalogSection From(RulesCatalogSection value) { var result = new EditableCatalogSection { Key = value.Key, Label = value.Label }; result.Items.AddRange(value.Items.Select(EditableCatalogItem.From)); return result; } }
+ private sealed class EditableCatalogItem { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public RulesCatalogItemKind Kind { get; set; } = RulesCatalogItemKind.RecordCatalog; public string RecordType { get; set; } = ""; public List<EditableCatalogItem> Items { get; } = []; public RulesCatalogItem Build() => new(Key, Label, Kind, Kind == RulesCatalogItemKind.RecordCatalog ? RecordType : null, Items.Select(item => item.Build())); public static EditableCatalogItem From(RulesCatalogItem value) { var result = new EditableCatalogItem { Key = value.Key, Label = value.Label, Kind = value.Kind, RecordType = value.RecordType ?? "" }; result.Items.AddRange(value.Items.Select(From)); return result; } }
+
+ private sealed class EditableRulesRecord
+ {
+  public RulesRecord? Original { get; private init; } public string Key { get; set; } = ""; public string RecordType { get; private init; } = ""; private readonly Dictionary<string, string> values = new(StringComparer.Ordinal);
+  public string Get(string key) => values.GetValueOrDefault(key) ?? ""; public void Set(string key, string value) => values[key] = value;
+  public bool HasReference(string field, RulesRecord record) => Get(field).Split(',', StringSplitOptions.RemoveEmptyEntries).Contains($"{record.RecordType}/{record.Key}");
+  public void ToggleReference(string field, RulesRecord record, bool enabled, RecordCardinality cardinality) { var token = $"{record.RecordType}/{record.Key}"; var selected = Get(field).Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(); if (enabled) { if (cardinality is not RecordCardinality.Many and not RecordCardinality.OneOrMore) selected.Clear(); if (!selected.Contains(token)) selected.Add(token); } else selected.Remove(token); Set(field, string.Join(',', selected)); }
+  public RulesRecord Build(IReadOnlyList<RecordFieldDefinition> fields) { var built = new Dictionary<string, JsonElement>(StringComparer.Ordinal); foreach (var field in fields) { var input = Get(field.Key); if (string.IsNullOrWhiteSpace(input) && field.Cardinality is RecordCardinality.Optional or RecordCardinality.Many) continue; built[field.Key] = BuildValue(field, input); } return new RulesRecord(Key, RecordType, built); }
+  private static JsonElement BuildValue(RecordFieldDefinition field, string input)
+  {
+   if (field.ValueKind == RecordValueKind.Text && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional) return JsonSerializer.SerializeToElement(input);
+   if (field.ValueKind == RecordValueKind.Integer && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional) return JsonSerializer.SerializeToElement(long.TryParse(input, out var number) ? number : throw new ArgumentException($"{field.Label} must be an integer."));
+   if (field.ValueKind == RecordValueKind.Boolean && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional) return JsonSerializer.SerializeToElement(bool.TryParse(input, out var boolean) ? boolean : throw new ArgumentException($"{field.Label} must be Yes or No."));
+   if (field.ValueKind == RecordValueKind.RulesReference) { var references = input.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(token => { var parts = token.Split('/', 2); return new RulesRecordReference(parts[0], parts[1]); }).ToArray(); return field.Cardinality is RecordCardinality.Many or RecordCardinality.OneOrMore ? JsonSerializer.SerializeToElement(references) : JsonSerializer.SerializeToElement(references.Single()); }
+   using var document = JsonDocument.Parse(input); return document.RootElement.Clone();
+  }
+  public static EditableRulesRecord Create(string recordType) => new() { RecordType = recordType, Key = "new-record" };
+  public static EditableRulesRecord From(RulesRecord record, IReadOnlyList<RecordFieldDefinition> fields) { var result = new EditableRulesRecord { Original = record, Key = record.Key, RecordType = record.RecordType }; foreach (var field in fields) if (record.Values.TryGetValue(field.Key, out var value)) result.values[field.Key] = field.ValueKind switch { RecordValueKind.Text when field.Cardinality is RecordCardinality.One or RecordCardinality.Optional => value.GetString() ?? "", RecordValueKind.Integer or RecordValueKind.Boolean when field.Cardinality is RecordCardinality.One or RecordCardinality.Optional => value.GetRawText(), RecordValueKind.RulesReference => string.Join(',', (field.Cardinality is RecordCardinality.Many or RecordCardinality.OneOrMore ? value.EnumerateArray().ToArray() : [value]).Select(item => $"{item.GetProperty("recordType").GetString()}/{item.GetProperty("key").GetString()}")), _ => value.GetRawText() }; return result; }
+ }
+}

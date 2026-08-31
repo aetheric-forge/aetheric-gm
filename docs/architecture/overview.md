@@ -22,6 +22,8 @@ The application authenticates through the existing Forge Keycloak realm using Op
 
 The Registry is a direct child of the standalone Campus. Authentication establishes the operator identity but does not yet introduce application roles or campaign-sharing authorization. All campaign data remains single-operator in this slice.
 
+Aetheric GM maintains a local application profile keyed by the authenticated `sub` claim. This profile is not an authentication account; it owns application-specific integration metadata, initially SSH credentials for private rules-package acquisition. Credential handling and storage are defined in [User profiles and SSH credentials](user-profiles-and-ssh.md).
+
 ## Future Forge Campus integration seam
 
 Future integration supplies a parent host and mounts Aetheric GM as an explicitly constituted descendant institution or application capability. Campaign identifiers and repository contracts remain unchanged. Integration replaces host composition and infrastructure registration—not domain entities or Razor-owned business rules. Until then, Aetheric GM remains exactly one root Campus and does not simulate federation.

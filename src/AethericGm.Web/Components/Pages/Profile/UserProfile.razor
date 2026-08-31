@@ -1,0 +1,97 @@
+@page "/profile"
+@using System.Security.Claims
+@inject ISshCredentialService Credentials
+@inject AuthenticationStateProvider AuthenticationState
+
+<PageTitle>Profile · Aetheric GM</PageTitle>
+<header class="page-header"><div><p class="eyebrow">User profile</p><h1>SSH credentials</h1><p>Authorize private rules-package repositories without exposing private keys to packages or campaigns.</p></div></header>
+
+@if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
+
+<section class="panel credential-form">
+ <h2>Add SSH credential</h2>
+ <p class="form-guidance">The private key is encrypted before storage and cannot be viewed again. A passphrase, when required, is used only to validate this submission and is not saved.</p>
+ <label>Name <input maxlength="100" autocomplete="off" @bind="newName" placeholder="Shadowdark repository" /></label>
+ <label>Private key <textarea rows="10" autocomplete="off" autocapitalize="off" spellcheck="false" @bind="newPrivateKey" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+ <label>Passphrase <input type="password" autocomplete="new-password" @bind="newPassphrase" /></label>
+ <button class="primary" @onclick="AddAsync" disabled="@busy">Add credential</button>
+</section>
+
+<section class="credential-list">
+ <div class="list-heading"><h2>Saved credentials</h2><span>@credentials.Count</span></div>
+ @if (credentials.Count == 0)
+ {
+  <div class="panel empty"><p>No SSH credentials have been added.</p></div>
+ }
+ @foreach (var credential in credentials)
+ {
+  <article class="panel credential-card">
+   <div class="credential-heading"><div><strong>@credential.Name</strong><code>@credential.Fingerprint</code></div><span class="badge">@credential.Algorithm</span></div>
+   <dl><div><dt>Created</dt><dd>@credential.CreatedAt.ToLocalTime().ToString("g")</dd></div><div><dt>Passphrase</dt><dd>@(credential.RequiresPassphrase ? "Required when used" : "Not required")</dd></div><div><dt>Last used</dt><dd>@(credential.LastUsedAt?.ToLocalTime().ToString("g") ?? "Never")</dd></div></dl>
+   <div class="credential-actions"><input maxlength="100" aria-label="New credential name" @bind="renameNames[credential.Id]" /><button class="quiet" @onclick="() => RenameAsync(credential.Id)" disabled="@busy">Rename</button><button class="danger" @onclick="() => pendingDelete = credential.Id" disabled="@busy">Remove</button></div>
+   @if (pendingDelete == credential.Id)
+   {
+    <div class="delete-confirm"><p>Remove <strong>@credential.Name</strong>? Installed packages will remain available, but future private access using this credential will stop.</p><button class="danger-confirm" @onclick="() => DeleteAsync(credential.Id)" disabled="@busy">Remove credential</button><button class="quiet" @onclick="() => pendingDelete = null">Cancel</button></div>
+   }
+  </article>
+ }
+</section>
+
+@code {
+ private string? ownerSubjectId;
+ private string newName = "";
+ private string newPrivateKey = "";
+ private string newPassphrase = "";
+ private List<SshCredential> credentials = [];
+ private Dictionary<Guid, string> renameNames = [];
+ private Guid? pendingDelete;
+ private string? message;
+ private bool hasError;
+ private bool busy;
+
+ protected override async Task OnInitializedAsync()
+ {
+  var principal = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+  ownerSubjectId = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+  if (string.IsNullOrWhiteSpace(ownerSubjectId)) { message = "The signed-in identity does not provide a subject identifier."; hasError = true; return; }
+  await RefreshAsync();
+ }
+
+ private async Task AddAsync()
+ {
+  if (ownerSubjectId is null || busy) return;
+  await RunAsync(async () =>
+  {
+   await Credentials.AddAsync(ownerSubjectId, newName, newPrivateKey, string.IsNullOrEmpty(newPassphrase) ? null : newPassphrase);
+   newName = ""; newPrivateKey = ""; newPassphrase = "";
+   await RefreshAsync(); message = "SSH credential added.";
+  });
+ }
+
+ private async Task RenameAsync(Guid id)
+ {
+  if (ownerSubjectId is null || busy) return;
+  await RunAsync(async () => { await Credentials.RenameAsync(ownerSubjectId, id, renameNames[id]); await RefreshAsync(); message = "SSH credential renamed."; });
+ }
+
+ private async Task DeleteAsync(Guid id)
+ {
+  if (ownerSubjectId is null || busy) return;
+  await RunAsync(async () => { await Credentials.DeleteAsync(ownerSubjectId, id); pendingDelete = null; await RefreshAsync(); message = "SSH credential removed."; });
+ }
+
+ private async Task RefreshAsync()
+ {
+  credentials = (await Credentials.ListAsync(ownerSubjectId!)).ToList();
+  renameNames = credentials.ToDictionary(credential => credential.Id, credential => credential.Name);
+ }
+
+ private async Task RunAsync(Func<Task> action)
+ {
+  busy = true; message = null; hasError = false;
+  try { await action(); }
+  catch (Exception exception) when (exception is SshCredentialValidationException or ArgumentException or InvalidOperationException or KeyNotFoundException)
+  { message = exception.Message; hasError = true; }
+  finally { busy = false; }
+ }
+}

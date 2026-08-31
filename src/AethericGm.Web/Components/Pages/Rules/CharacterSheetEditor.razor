@@ -1,0 +1,99 @@
+@page "/rulesets/{RulesetId}/{Version}/character-sheet"
+@inject IRulesCatalog Catalog
+@inject ICharacterSheetDefinitionStore Store
+@inject IRulesPackageInstaller PackageInstaller
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using AethericGm.Infrastructure.Rules
+@using AethericGm.Infrastructure.Rules.CharacterSheets
+
+<PageTitle>Rules editor · Aetheric GM</PageTitle>
+<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Rules editor</h1><label>Ruleset <select value="@SelectedRuleset" @onchange="SelectRuleset"><option value="">Select a ruleset</option>@foreach (var ruleset in availableRulesets) { <option value="@ruleset.Reference.ToString()">@ruleset.Name · @ruleset.Reference.Version</option> }</select></label></div></header>
+
+@if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
+@if (descriptor is null) { <section class="panel"><h2>Ruleset unavailable</h2><p>The requested ruleset is not installed in this catalog.</p></section> }
+else
+{
+ <RulesCatalogEditor Descriptor="descriptor" PackagePath="@activePackagePath" />
+ <section class="definition-note panel"><div><strong>Character sheet definition</strong><p>Build the stored shape of a character sheet. Catalog records provide choices such as ancestries.</p></div><button class="primary" @onclick="SaveAsync">Save sheet</button></section>
+ <div class="sheet-editor">
+  @for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++)
+  {
+   var currentSection = sectionIndex;
+   <section class="sheet-section panel">
+    <div class="section-heading"><div class="field-row"><label>Section key <input @bind="sections[currentSection].Key" /></label><label>Section label <input @bind="sections[currentSection].Label" /></label></div><button class="danger" @onclick="() => RemoveSection(currentSection)">Remove section</button></div>
+    @for (var fieldIndex = 0; fieldIndex < sections[currentSection].Fields.Count; fieldIndex++)
+    {
+     var currentField = fieldIndex; var field = sections[currentSection].Fields[currentField];
+     <div class="field-definition">
+      <label>Key <input @bind="field.Key" /></label><label>Label <input @bind="field.Label" /></label>
+      <label>Value <select @bind="field.ValueKind">@foreach (var kind in Enum.GetValues<RecordValueKind>()) { <option value="@kind">@Display(kind)</option> }</select></label>
+      <label>Cardinality <select @bind="field.Cardinality">@foreach (var cardinality in Enum.GetValues<RecordCardinality>()) { <option value="@cardinality">@Display(cardinality)</option> }</select></label>
+      @if (RecordFieldDefinition.RequiresRecordType(field.ValueKind))
+      {
+       <label>Record type <select @bind="field.RecordType"><option value="">Select a record type</option>@foreach (var type in RecordTypes) { <option value="@type.Key">@type.Label</option> }</select></label>
+      }
+      <button class="danger" @onclick="() => RemoveField(currentSection, currentField)">Remove</button>
+     </div>
+    }
+    <button class="quiet" @onclick="() => AddField(currentSection)">Add field</button>
+   </section>
+  }
+  <button class="quiet add-section" @onclick="AddSection">Add section</button>
+ </div>
+}
+
+@code {
+ [Parameter] public string RulesetId { get; set; } = "";
+ [Parameter] public string Version { get; set; } = "";
+ private RulesetReference? reference; private RulesetDescriptor? descriptor; private List<EditableSection> sections = []; private IReadOnlyList<RulesetDescriptor> availableRulesets = []; private string? message; private bool hasError;
+ private ICharacterSheetDefinitionStore activeStore = default!; private string? activePackagePath;
+ private string SelectedRuleset => reference?.ToString() ?? "";
+ protected override async Task OnParametersSetAsync()
+ {
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var ownerSubjectId = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   var packages = ownerSubjectId is null ? [] : await PackageInstaller.ListAsync(ownerSubjectId);
+   var installedRulesets = ownerSubjectId is null ? [] : await PackageInstaller.ListRulesetsAsync(ownerSubjectId);
+   availableRulesets = Catalog.List().Concat(installedRulesets).GroupBy(item => item.Reference).Select(group => group.First()).OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+   reference = new RulesetReference(RulesetId, Version);
+   descriptor = availableRulesets.FirstOrDefault(item => item.Reference == reference);
+   var package = packages.FirstOrDefault(item => item.Ruleset == reference);
+   activePackagePath = package?.PackagePath;
+   activeStore = package is null ? Store : new FileCharacterSheetDefinitionStore(package.PackagePath, new FileRulesCatalog(package.PackagePath), true);
+   var definition = descriptor is null ? null : await activeStore.GetAsync(reference);
+   sections = definition?.Sections.Select(EditableSection.From).ToList() ?? [];
+  }
+  catch (Exception ex) when (ex is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { descriptor = null; message = ex.Message; hasError = true; }
+ }
+ private void SelectRuleset(ChangeEventArgs eventArgs)
+ {
+  var selected = availableRulesets.FirstOrDefault(item => item.Reference.ToString() == eventArgs.Value?.ToString());
+  if (selected is not null) Navigation.NavigateTo($"/rulesets/{selected.Reference.Id}/{selected.Reference.Version}/character-sheet");
+ }
+ private void AddSection() { var number = sections.Count + 1; sections.Add(new() { Key = $"section-{number}", Label = $"Section {number}" }); }
+ private void RemoveSection(int index) => sections.RemoveAt(index);
+ private void AddField(int section) { var number = sections[section].Fields.Count + 1; sections[section].Fields.Add(new() { Key = $"field-{number}", Label = $"Field {number}" }); }
+ private void RemoveField(int section, int field) => sections[section].Fields.RemoveAt(field);
+ private async Task SaveAsync()
+ {
+  if (reference is null || descriptor is null) return;
+  try { await activeStore.SaveAsync(BuildDefinition(reference)); message = "Draft saved to the local package copy."; hasError = false; }
+  catch (Exception ex) when (ex is ArgumentException or IOException) { message = ex.Message; hasError = true; }
+ }
+ private CharacterSheetDefinition BuildDefinition(RulesetReference ruleset)
+ {
+  var builtSections = sections.Select(section => new CharacterSheetSection(
+   section.Key,
+   section.Label,
+   section.Fields.Select(field => new CharacterSheetField(
+    field.Key, field.Label, field.ValueKind, field.Cardinality, RecordFieldDefinition.RequiresRecordType(field.ValueKind) ? field.RecordType : null))));
+  var definition = new CharacterSheetDefinition(ruleset, builtSections); definition.ValidateAgainst(descriptor!.RecordTypes); return definition;
+ }
+ private IReadOnlyList<RecordTypeDefinition> RecordTypes => descriptor?.RecordTypes.List() ?? [];
+ private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+ private sealed class EditableSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableField> Fields { get; set; } = []; public static EditableSection From(CharacterSheetSection value) => new() { Key = value.Key, Label = value.Label, Fields = value.Fields.Select(EditableField.From).ToList() }; }
+ private sealed class EditableField { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public RecordValueKind ValueKind { get; set; } public RecordCardinality Cardinality { get; set; } = RecordCardinality.One; public string? RecordType { get; set; } public static EditableField From(CharacterSheetField value) => new() { Key = value.Key, Label = value.Label, ValueKind = value.ValueKind, Cardinality = value.Cardinality, RecordType = value.RecordType }; }
+}
