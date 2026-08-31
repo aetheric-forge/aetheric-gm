@@ -6,11 +6,17 @@ using AethericGm.Infrastructure.Rules;
 using AethericGm.Core.Rules.CharacterSheets;
 using AethericGm.Infrastructure.Rules.CharacterSheets;
 using AethericGm.Web.Composition;
+using AethericGm.Core.Profiles;
+using AethericGm.Infrastructure.Profiles;
+using AethericGm.Web.Profiles;
+using AethericGm.Core.Rules.Packages;
+using AethericGm.Infrastructure.Rules.Packages;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -56,7 +62,17 @@ builder.Services.AddAuthorization();
 
 var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(dataDirectory);
-var campaignRepository = new SqliteCampaignRepository($"Data Source={Path.Combine(dataDirectory, "aetheric-gm.db")}");
+var databaseConnectionString = $"Data Source={Path.Combine(dataDirectory, "aetheric-gm.db")}";
+var protectionKeysDirectory = Path.Combine(dataDirectory, "DataProtection-Keys");
+Directory.CreateDirectory(protectionKeysDirectory);
+if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(protectionKeysDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(protectionKeysDirectory)).SetApplicationName("AethericGm");
+builder.Services.AddSingleton<ISshPrivateKeyProtector, DataProtectionSshPrivateKeyProtector>();
+builder.Services.AddSingleton<ISshCredentialService>(services => new SqliteSshCredentialService(databaseConnectionString, services.GetRequiredService<ISshPrivateKeyProtector>()));
+var installedPackagesPath = Path.Combine(dataDirectory, "RulesPackages");
+builder.Services.AddSingleton<IRulesPackageInstaller>(services => new GitRulesPackageInstaller(
+    databaseConnectionString, installedPackagesPath, services.GetRequiredService<ISshCredentialService>()));
+var campaignRepository = new SqliteCampaignRepository(databaseConnectionString);
 await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
@@ -72,6 +88,8 @@ builder.Services.AddSingleton<AethericGmCampus>();
 builder.Services.AddHostedService(services => services.GetRequiredService<AethericGmCampus>());
 
 var app = builder.Build();
+await app.Services.GetRequiredService<ISshCredentialService>().InitializeAsync();
+await app.Services.GetRequiredService<IRulesPackageInstaller>().InitializeAsync();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
