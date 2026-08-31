@@ -73,6 +73,40 @@ public sealed class FileRulesCatalogTests : IDisposable
         Assert.Throws<InvalidDataException>(() => new FileRulesCatalog(root));
     }
 
+    [Fact]
+    public void Loads_and_validates_hierarchical_catalogs()
+    {
+        var package = WriteManifest("test", "1.0.0", "Test");
+        File.WriteAllText(Path.Combine(package.FullName, "record-types.json"), """
+        {"recordTypes":[{"key":"ancestry","label":"Ancestry","fields":[]}]}
+        """);
+        File.WriteAllText(Path.Combine(package.FullName, "catalog.json"), """
+        {"sections":[{"key":"character-creation","label":"Character Creation","items":[
+          {"key":"choices","label":"Choices","kind":"group","items":[
+            {"key":"ancestries","label":"Ancestries","kind":"record-catalog","recordType":"ancestry","items":[]}
+          ]}
+        ]}]}
+        """);
+
+        var descriptor = Assert.Single(new FileRulesCatalog(root).List());
+        var section = Assert.Single(descriptor.Catalog.Sections);
+        Assert.Equal("Character Creation", section.Label);
+        Assert.Equal("ancestry", Assert.Single(Assert.Single(section.Items).Items).RecordType);
+    }
+
+    [Fact]
+    public void Rejects_catalogs_that_target_unknown_record_types()
+    {
+        var package = WriteManifest("test", "1.0.0", "Test");
+        File.WriteAllText(Path.Combine(package.FullName, "catalog.json"), """
+        {"sections":[{"key":"character-creation","label":"Character Creation","items":[
+          {"key":"ancestries","label":"Ancestries","kind":"record-catalog","recordType":"missing","items":[]}
+        ]}]}
+        """);
+
+        Assert.Throws<InvalidDataException>(() => new FileRulesCatalog(root));
+    }
+
     private DirectoryInfo WriteManifest(string id, string version, string name, string directory = "package")
     {
         var path = Directory.CreateDirectory(Path.Combine(root, directory));

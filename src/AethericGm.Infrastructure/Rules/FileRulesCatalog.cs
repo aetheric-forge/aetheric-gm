@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AethericGm.Core.Rules;
 using AethericGm.Core.Rules.Records;
+using AethericGm.Core.Rules.Catalog;
 namespace AethericGm.Infrastructure.Rules;
 public sealed class FileRulesCatalog : IRulesCatalog
 {
@@ -23,11 +24,23 @@ public sealed class FileRulesCatalog : IRulesCatalog
             var types = LoadRecordTypes(packagePath);
             var records = LoadRecords(packagePath);
             ValidateRecords(types, records, path);
-            var descriptor = new RulesetDescriptor(new RulesetReference(manifest.Id, manifest.Version), manifest.Name, manifest.Description, types, records);
+            var catalog = LoadCatalog(packagePath); catalog.ValidateAgainst(types);
+            var descriptor = new RulesetDescriptor(new RulesetReference(manifest.Id, manifest.Version), manifest.Name, manifest.Description, types, records, catalog);
             if (!loaded.TryAdd(descriptor.Reference, descriptor)) throw new InvalidDataException($"Duplicate ruleset '{descriptor.Reference}' in '{path}'.");
         }
         rulesets = loaded;
     }
+
+    private static RulesCatalogDefinition LoadCatalog(string packagePath)
+    {
+        var path = Path.Combine(packagePath, "catalog.json");
+        if (!File.Exists(path)) return new RulesCatalogDefinition([]);
+        var document = JsonSerializer.Deserialize<CatalogDocument>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException($"Rules catalog '{path}' is empty.");
+        return new RulesCatalogDefinition(document.Sections.Select(section => new RulesCatalogSection(section.Key, section.Label, (section.Items ?? []).Select(ToItem))));
+    }
+
+    private static RulesCatalogItem ToItem(CatalogItemDocument item) =>
+        new(item.Key, item.Label, item.Kind, item.RecordType, (item.Items ?? []).Select(ToItem));
     public IReadOnlyList<RulesetDescriptor> List() => rulesets.Values.OrderBy(value => value.Name, StringComparer.OrdinalIgnoreCase).ThenBy(value => value.Reference.Version, StringComparer.Ordinal).ToArray();
     public RulesetDescriptor? Resolve(RulesetReference reference) { ArgumentNullException.ThrowIfNull(reference); return rulesets.GetValueOrDefault(reference); }
 
@@ -149,4 +162,7 @@ public sealed class FileRulesCatalog : IRulesCatalog
     private sealed record RecordFieldDocument(string Key, string Label, RecordValueKind ValueKind, RecordCardinality Cardinality, string? RecordType, string? Description);
     private sealed record RecordsDocument(IReadOnlyList<RulesRecordDocument> Records);
     private sealed record RulesRecordDocument(string Key, string RecordType, IReadOnlyDictionary<string, JsonElement> Values);
+    private sealed record CatalogDocument(IReadOnlyList<CatalogSectionDocument> Sections);
+    private sealed record CatalogSectionDocument(string Key, string Label, IReadOnlyList<CatalogItemDocument>? Items);
+    private sealed record CatalogItemDocument(string Key, string Label, RulesCatalogItemKind Kind, string? RecordType, IReadOnlyList<CatalogItemDocument>? Items);
 }

@@ -7,14 +7,15 @@
 @using AethericGm.Infrastructure.Rules
 @using AethericGm.Infrastructure.Rules.CharacterSheets
 
-<PageTitle>Character sheet editor · Aetheric GM</PageTitle>
-<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Character sheet editor</h1><label>Ruleset <select value="@SelectedRuleset" @onchange="SelectRuleset"><option value="">Select a ruleset</option>@foreach (var ruleset in availableRulesets) { <option value="@ruleset.Reference.ToString()">@ruleset.Name · @ruleset.Reference.Version</option> }</select></label></div><button class="primary" @onclick="SaveAsync">Save draft</button></header>
+<PageTitle>Rules editor · Aetheric GM</PageTitle>
+<header class="page-header"><div><p class="eyebrow">Rules authoring</p><h1>Rules editor</h1><label>Ruleset <select value="@SelectedRuleset" @onchange="SelectRuleset"><option value="">Select a ruleset</option>@foreach (var ruleset in availableRulesets) { <option value="@ruleset.Reference.ToString()">@ruleset.Name · @ruleset.Reference.Version</option> }</select></label></div></header>
 
 @if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
 @if (descriptor is null) { <section class="panel"><h2>Ruleset unavailable</h2><p>The requested ruleset is not installed in this catalog.</p></section> }
 else
 {
- <section class="definition-note panel"><strong>Definition only</strong><p>Build the shape of a character sheet here. Creation procedures, calculations, and book text remain separate.</p></section>
+ <RulesCatalogEditor Descriptor="descriptor" PackagePath="activePackagePath" />
+ <section class="definition-note panel"><div><strong>Character sheet definition</strong><p>Build the stored shape of a character sheet. Catalog records provide choices such as ancestries.</p></div><button class="primary" @onclick="SaveAsync">Save sheet</button></section>
  <div class="sheet-editor">
   @for (var sectionIndex = 0; sectionIndex < sections.Count; sectionIndex++)
   {
@@ -46,7 +47,7 @@ else
  [Parameter] public string RulesetId { get; set; } = "";
  [Parameter] public string Version { get; set; } = "";
  private RulesetReference? reference; private RulesetDescriptor? descriptor; private List<EditableSection> sections = []; private IReadOnlyList<RulesetDescriptor> availableRulesets = []; private string? message; private bool hasError;
- private ICharacterSheetDefinitionStore activeStore = default!;
+ private ICharacterSheetDefinitionStore activeStore = default!; private string? activePackagePath;
  private string SelectedRuleset => reference?.ToString() ?? "";
  protected override async Task OnParametersSetAsync()
  {
@@ -60,6 +61,7 @@ else
    reference = new RulesetReference(RulesetId, Version);
    descriptor = availableRulesets.FirstOrDefault(item => item.Reference == reference);
    var package = packages.FirstOrDefault(item => item.Ruleset == reference);
+   activePackagePath = package?.PackagePath;
    activeStore = package is null ? Store : new FileCharacterSheetDefinitionStore(package.PackagePath, new FileRulesCatalog(package.PackagePath), true);
    var definition = descriptor is null ? null : await activeStore.GetAsync(reference);
    sections = definition?.Sections.Select(EditableSection.From).ToList() ?? [];

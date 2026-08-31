@@ -74,6 +74,32 @@ Loading is performed in two stages. JSON is first checked for structural correct
 
 Record-reference cycles are permitted because game concepts may refer to one another, but consumers must not recursively expand such references without cycle detection.
 
+## Catalog index
+
+An optional `catalog.json` provides an ordered, hierarchical presentation index over published rules records. Sections and groups organize material, while a `record-catalog` item names a registered record type whose compatible records form that catalog. The index never copies rules-record content or changes record identity.
+
+```json
+{
+  "sections": [
+    {
+      "key": "character-creation",
+      "label": "Character Creation",
+      "items": [
+        {
+          "key": "ancestries",
+          "label": "Ancestries",
+          "kind": "record-catalog",
+          "recordType": "ancestry",
+          "items": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Catalog keys are stable presentation identifiers. Labels and ordering may change without invalidating rules references. Catalog documents remain declarative data and cannot contain executable behavior.
+
 ## Character-sheet definitions
 
 The character-sheet authoring surface edits a `character-sheet.json` definition within a ruleset package. A sheet consists of ordered sections and fields. Scalar fields may be used directly; record fields select from the ruleset's registered record types.

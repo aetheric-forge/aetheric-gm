@@ -18,7 +18,7 @@ public sealed partial class GitRulesPackageInstaller(
     ISshCredentialService credentials,
     TimeProvider? timeProvider = null) : IRulesPackageInstaller
 {
-    private static readonly string[] PackageFiles = ["manifest.json", "record-types.json", "records.json", "character-sheet.json"];
+    private static readonly string[] PackageFiles = ["manifest.json", "record-types.json", "records.json", "character-sheet.json", "catalog.json"];
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
