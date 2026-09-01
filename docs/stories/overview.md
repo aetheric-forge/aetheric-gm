@@ -28,11 +28,13 @@ The next rules-authoring and character-creation stories are:
 14. [Save local rules edits safely](14-save-local-rules-edits-safely.md)
 15. [Choose an ancestry during character creation](15-choose-character-ancestry.md)
 
-The v0.2 live-play stories begin with:
+The v0.2 live-play stories are:
 
 16. [Roll animated dice](16-roll-animated-dice.md)
+17. [Use a character sheet during play](17-use-character-sheet.md)
+18. [Manage an NPC catalog](18-manage-npc-catalog.md)
 
-This is the first slice of the [v0.2 live-play foundations milestone](../product/v0.2.md), followed by a proper character sheet and an NPC catalog.
+Together these form the [v0.2 live-play foundations milestone](../product/v0.2.md).
 
 An original demonstration package provides the distributable proving examples: attributes contain structured values and temporary modifiers, while heritages are published rules records that can carry flavour text and grant abilities. A separately obtained Shadowdark package may use the same engine, but Shadowdark content is not part of the application repository or release artifacts without an appropriate redistribution license.
 
