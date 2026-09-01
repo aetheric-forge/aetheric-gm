@@ -11,11 +11,11 @@
   <fieldset class="die-picker"><legend>Die type</legend>
    @foreach (var sides in DiceRollRequest.SupportedSides.Order())
    {
-    <button type="button" class="die-choice @(selectedSides == sides ? "selected" : null)" aria-pressed="@(selectedSides == sides)" @onclick="() => SelectSides(sides)"><span class="mini-die die-d@(sides)" aria-hidden="true"></span><span>d@sides</span></button>
+    <button type="button" class="die-choice @(selectedSides == sides ? "selected" : null)" aria-pressed="@(selectedSides == sides)" @onclick="() => SelectSides(sides)"><span class="mini-die die-d@(sides)" aria-hidden="true"></span><span>@($"d{sides}")</span></button>
    }
   </fieldset>
   <div class="roll-options">
-   <label>Dice <span class="number-stepper"><button type="button" aria-label="Remove one die" @onclick="() => ChangeCount(-1)" disabled="@(count <= 1)">−</button><input type="number" min="1" max="100" @bind="count" aria-label="Number of dice" /><button type="button" aria-label="Add one die" @onclick="() => ChangeCount(1)" disabled="@(count >= 100)">+</button></span></label>
+   <label>Dice <input class="dice-count" type="number" min="1" max="100" step="1" @bind="count" @bind:after="NormalizeCount" aria-label="Number of dice" /></label>
    <label>Modifier <input type="number" min="-999" max="999" @bind="modifier" /></label>
    <label>Label <input type="text" maxlength="80" @bind="label" placeholder="Untitled roll" /></label>
   </div>
@@ -62,7 +62,7 @@
  private DiceRollMode EffectiveMode => selectedSides == 20 && count == 1 ? mode : DiceRollMode.Normal;
  private string Expression => new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode).Expression;
  private void SelectSides(int sides) { selectedSides = sides; if (sides != 20) mode = DiceRollMode.Normal; }
- private void ChangeCount(int amount) { count = Math.Clamp(count + amount, 1, 100); if (count != 1) mode = DiceRollMode.Normal; }
+ private void NormalizeCount() { count = Math.Clamp(count, 1, 100); if (count != 1) mode = DiceRollMode.Normal; }
  private void Roll() => current = Tray.Roll(new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode, label));
  private void Repeat(DiceRollResult result) => current = Tray.Roll(result.Request);
  private static string ModeLabel(DiceRollMode value) => value switch { DiceRollMode.Advantage => "Advantage", DiceRollMode.Disadvantage => "Disadvantage", _ => "Normal" };

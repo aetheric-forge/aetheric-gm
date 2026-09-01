@@ -15,6 +15,7 @@ Aetheric GM is a rules-neutral, single-GM campaign helper. Priority is a trustwo
 | P1 | Local rules catalog editing | Edit schema-driven catalog entries and published records as validated JSON in the installed local package copy. |
 | P1 | Character creation skeleton | Discover character-creation catalogs and retain stable references to selected rules records such as ancestries. |
 | P1 | Animated dice roller | Roll recognizable 2D polyhedral dice with accessible animation, contextual modifiers, readable breakdowns, and recent history. |
+| P1 | Inline rules rolls | Render safe declarative dice links in rules prose and resolve them in a compact modal backed by shared session history. |
 | P1 | Character sheet proper | Use a focused ruleset character sheet whose meaningful values and actions can initiate contextual rolls. |
 | P1 | NPC catalog | Find, inspect, create, and use campaign NPCs through the same rollable-action vocabulary as characters. |
 | P1 | User profile and SSH credentials | Securely manage profile-owned private SSH credentials and verified Git hosts. |
@@ -46,4 +47,4 @@ Authentication/authorization UI, generative AI, bundled third-party rules compen
 
 ## Current slice
 
-Version 0.1 established private rules package loading and a rules-enabled campaign workspace. The current target is the [v0.2 live-play foundations milestone](v0.2.md): animated 2D dice, a proper character sheet, and an NPC catalog.
+Version 0.1 established private rules package loading and a rules-enabled campaign workspace. The current target is the [v0.2 live-play foundations milestone](v0.2.md): animated 2D dice, inline rolls from rules prose, a proper character sheet, and an NPC catalog.
