@@ -1,0 +1,15 @@
+<div class="result-heading"><div><p class="eyebrow">@Result.Request.Label</p><h2 id="@HeadingId">@ResultHeading(Result)</h2></div><span class="result-expression">@Result.Request.Expression</span></div>
+<div class="rolled-dice" aria-label="Rolled dice" @key="Result.Id">
+ @foreach (var die in Result.Dice)
+ {
+  <div class="rolled-die die-d@(Result.Request.Sides) @(die.IsKept ? "kept" : "discarded") @(CriticalClass(Result, die))"><span>@die.Value</span>@if (!die.IsKept) { <small>discarded</small> }</div>
+ }
+</div>
+<div class="roll-breakdown" aria-live="polite" aria-atomic="true"><span><small>Dice</small><strong>@Result.Subtotal</strong></span><span class="operator-sign">@(Result.Request.Modifier < 0 ? "−" : "+")</span><span><small>Modifier</small><strong>@Math.Abs(Result.Request.Modifier)</strong></span><span class="operator-sign">=</span><span class="grand-total"><small>Total</small><strong>@Result.Total</strong></span></div>
+
+@code {
+ [Parameter, EditorRequired] public DiceRollResult Result { get; set; } = default!;
+ [Parameter] public string HeadingId { get; set; } = "result-heading";
+ private static string ResultHeading(DiceRollResult result) => result.IsNaturalMaximum ? "Natural 20!" : result.IsNaturalMinimum ? "Natural 1" : $"Total {result.Total}";
+ private static string CriticalClass(DiceRollResult result, DieResult die) => die.IsKept && result.Request.Sides == 20 ? die.Value switch { 20 => "critical", 1 => "fumble", _ => "" } : "";
+}

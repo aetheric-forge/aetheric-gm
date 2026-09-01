@@ -11,7 +11,9 @@ Activating the link generates a result through the shared dice roller and opens 
 ## Acceptance criteria
 
 - Given supported rules prose containing `[roll:1d20+3|Strength check]`, then the token is presented as an interactive link identifying both `Strength check` and `1d20 + 3`.
-- Given a valid inline expression, then it accepts only the supported dice types, dice counts, modifiers, and `kh1` or `kl1` advantage forms understood by the shared dice roller.
+- Given a valid inline expression, then it accepts only the supported dice types, dice counts, numeric modifiers, dotted value paths, and `kh1` or `kl1` advantage forms understood by the shared dice roller.
+- Given a modifier such as `(ability.wisdom)`, then the stored roll template retains that declarative path and resolves it only when a character or NPC context supplies an integer value.
+- Given a value path in a rules-authoring preview without character or NPC context, then the roll link is rendered but disabled with an explanation rather than silently substituting zero.
 - Given malformed syntax, an unsupported die, an out-of-range value, or an unsupported expression, then no action is executed and the rules-authoring surface reports a location-specific diagnostic.
 - Given ordinary rules text, links, or markup that does not match the explicit roll-token grammar, then it remains ordinary content and is never interpreted as executable code.
 - Given a rendered roll link, when the game master activates it, then the result is generated once through the shared dice roller before its animation begins.
@@ -31,11 +33,11 @@ Activating the link generates a result through the shared dice roller and opens 
 [roll:1d20+4|Goblin attack]
 [roll:2d20kh1+3|Attack with advantage]
 [roll:1d8+2|Longsword damage]
+[roll:1d20+(ability.wisdom)|Wisdom check]
 ```
 
 The stored token is declarative data. Rules packages cannot supply scripts, event handlers, arbitrary URLs, or presentation code through it.
 
 ## Not included
 
-Arbitrary mathematical expressions, mixed dice pools, macros, variables resolved from character or NPC state, hidden rolls, automated rule resolution, package-supplied modal layouts, persistent campaign-wide roll logs, or multiplayer synchronization.
-
+Arbitrary mathematical expressions, mixed dice pools, macros beyond dotted integer value paths, hidden rolls, automated rule resolution, package-supplied modal layouts, persistent campaign-wide roll logs, or multiplayer synchronization.

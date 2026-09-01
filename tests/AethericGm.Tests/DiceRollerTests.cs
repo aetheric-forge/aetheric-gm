@@ -44,8 +44,10 @@ public class DiceRollerTests
         for (var index = 1; index <= 21; index++) tray.Roll(new DiceRollRequest(1, 6, label: $"Roll {index}"));
 
         Assert.Equal(20, tray.History.Count); Assert.Equal("Roll 21", tray.History[0].Request.Label); Assert.Equal("Roll 2", tray.History[^1].Request.Label);
+        Assert.Same(tray.History[0], tray.Selected);
+        tray.Select(tray.History[5]); Assert.Same(tray.History[5], tray.Selected);
         var repeated = tray.Roll(tray.History[0].Request);
-        Assert.Equal("Roll 21", repeated.Request.Label); Assert.Equal(20, tray.History.Count);
+        Assert.Equal("Roll 21", repeated.Request.Label); Assert.Equal(20, tray.History.Count); Assert.Same(repeated, tray.Selected);
     }
     private static DiceRoller CreateRoller(params int[] values) => new(new SequenceRandom(values), new FixedTimeProvider(DateTimeOffset.Parse("2026-08-31T12:00:00Z")));
     private sealed class SequenceRandom(params int[] values) : IDiceRandomSource

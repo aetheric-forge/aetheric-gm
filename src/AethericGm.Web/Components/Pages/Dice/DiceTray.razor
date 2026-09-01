@@ -33,14 +33,7 @@
   }
   else
   {
-   <div class="result-heading"><div><p class="eyebrow">@current.Request.Label</p><h2 id="result-heading">@ResultHeading(current)</h2></div><span class="result-expression">@current.Request.Expression</span></div>
-   <div class="rolled-dice" aria-label="Rolled dice" @key="current.Id">
-    @foreach (var die in current.Dice)
-    {
-     <div class="rolled-die die-d@(current.Request.Sides) @(die.IsKept ? "kept" : "discarded") @(CriticalClass(current, die))"><span>@die.Value</span>@if (!die.IsKept) { <small>discarded</small> }</div>
-    }
-   </div>
-   <div class="roll-breakdown" aria-live="polite" aria-atomic="true"><span><small>Dice</small><strong>@current.Subtotal</strong></span><span class="operator-sign">@(current.Request.Modifier < 0 ? "−" : "+")</span><span><small>Modifier</small><strong>@Math.Abs(current.Request.Modifier)</strong></span><span class="operator-sign">=</span><span class="grand-total"><small>Total</small><strong>@current.Total</strong></span></div>
+   <DiceRollResultPanel Result="current" />
   }
  </section>
 
@@ -49,7 +42,7 @@
   @if (Tray.History.Count == 0) { <p class="history-empty">Rolled dice will collect here for quick reference.</p> }
   else
   {
-   <ol>@foreach (var result in Tray.History) { <li class="@(result.Id == current?.Id ? "current" : null)"><button type="button" class="history-result" @onclick="() => current = result" aria-label="Show @result.Request.Label result @result.Total"><span><strong>@result.Request.Label</strong><small>@result.Request.Expression · @result.RolledAt.LocalDateTime.ToString("h:mm tt")</small></span><b>@result.Total</b></button><button type="button" class="repeat-roll" @onclick="() => Repeat(result)" aria-label="Repeat @result.Request.Label">↻</button></li> }</ol>
+   <ol>@foreach (var result in Tray.History) { <li class="@(result.Id == current?.Id ? "current" : null)"><button type="button" class="history-result" @onclick="() => Select(result)" aria-label="Show @result.Request.Label result @result.Total"><span><strong>@result.Request.Label</strong><small>@result.Request.Expression · @result.RolledAt.LocalDateTime.ToString("h:mm tt")</small></span><b>@result.Total</b></button><button type="button" class="repeat-roll" @onclick="() => Repeat(result)" aria-label="Repeat @result.Request.Label">↻</button></li> }</ol>
   }
  </section>
 </div>
@@ -59,13 +52,13 @@
  private string label = "Untitled roll";
  private DiceRollMode mode;
  private DiceRollResult? current;
+ protected override void OnInitialized() => current = Tray.Selected;
  private DiceRollMode EffectiveMode => selectedSides == 20 && count == 1 ? mode : DiceRollMode.Normal;
  private string Expression => new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode).Expression;
  private void SelectSides(int sides) { selectedSides = sides; if (sides != 20) mode = DiceRollMode.Normal; }
  private void NormalizeCount() { count = Math.Clamp(count, 1, 100); if (count != 1) mode = DiceRollMode.Normal; }
  private void Roll() => current = Tray.Roll(new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode, label));
  private void Repeat(DiceRollResult result) => current = Tray.Roll(result.Request);
+ private void Select(DiceRollResult result) { Tray.Select(result); current = result; }
  private static string ModeLabel(DiceRollMode value) => value switch { DiceRollMode.Advantage => "Advantage", DiceRollMode.Disadvantage => "Disadvantage", _ => "Normal" };
- private static string ResultHeading(DiceRollResult result) => result.IsNaturalMaximum ? "Natural 20!" : result.IsNaturalMinimum ? "Natural 1" : $"Total {result.Total}";
- private static string CriticalClass(DiceRollResult result, DieResult die) => die.IsKept && result.Request.Sides == 20 ? die.Value switch { 20 => "critical", 1 => "fumble", _ => "" } : "";
 }

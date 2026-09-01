@@ -1,0 +1,26 @@
+<span class="inline-rules-text">
+ @foreach (var segment in Segments)
+ {
+  @if (segment.IsRoll)
+  {
+   var resolved = segment.Roll!.TryResolve(ValueResolver, out var request);
+   <button type="button" class="inline-roll-link @(resolved ? null : "unresolved")" disabled="@(!resolved)" title="@(resolved ? null : $"Requires {segment.Roll.ModifierPath} from a character or NPC.")" @onclick="() => OnRoll.InvokeAsync(request!)" aria-label="@($"Roll {segment.Roll.Label}, {segment.Roll.Expression}")"><span>@segment.Roll.Label</span><small>@segment.Roll.Expression</small></button>
+  }
+  else if (segment.Error is not null)
+  {
+   <span class="inline-roll-invalid" title="@segment.Error">@segment.Text</span>
+  }
+  else
+  {
+   <span>@segment.Text</span>
+  }
+ }
+</span>
+
+@code {
+ [Parameter] public string? Text { get; set; }
+ [Parameter] public DiceRollContext? Context { get; set; }
+ [Parameter] public EventCallback<DiceRollRequest> OnRoll { get; set; }
+ [Parameter] public Func<string, int?>? ValueResolver { get; set; }
+ private IReadOnlyList<InlineRulesTextSegment> Segments => InlineRulesTextParser.Parse(Text, Context);
+}
