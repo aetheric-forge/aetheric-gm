@@ -14,6 +14,9 @@ Aetheric GM is a rules-neutral, single-GM campaign helper. Priority is a trustwo
 | P1 | Hierarchical rules catalog | Organize declarative rules records into authoring and consumption sections without duplicating their content. |
 | P1 | Local rules catalog editing | Edit schema-driven catalog entries and published records as validated JSON in the installed local package copy. |
 | P1 | Character creation skeleton | Discover character-creation catalogs and retain stable references to selected rules records such as ancestries. |
+| P1 | Animated dice roller | Roll recognizable 2D polyhedral dice with accessible animation, contextual modifiers, readable breakdowns, and recent history. |
+| P1 | Character sheet proper | Use a focused ruleset character sheet whose meaningful values and actions can initiate contextual rolls. |
+| P1 | NPC catalog | Find, inspect, create, and use campaign NPCs through the same rollable-action vocabulary as characters. |
 | P1 | User profile and SSH credentials | Securely manage profile-owned private SSH credentials and verified Git hosts. |
 | P1 | External rules packages | From a campaign, validate and install separately licensed packages from pinned public/private SSH Git revisions. |
 | P1 | Campaign rules selection | Select an installed ruleset and reopen the workspace from the local cache. |
@@ -23,7 +26,7 @@ Aetheric GM is a rules-neutral, single-GM campaign helper. Priority is a trustwo
 | P1 | Places | Nested locations plus explicit non-containment relationships. |
 | P1 | Encounters | Reusable templates and independent prepared/running/resolved session instances. |
 | P1 | Initiative and live play | Stable reorderable ties, rounds, and refresh-safe temporary state. |
-| P2 | Dice and quick reference | Rules-neutral expressions, readable breakdowns, pinned notes. |
+| P2 | Quick reference | Pinned notes and fast access to frequently used rules. |
 | P2 | Search and linking | Campaign-bounded typed results and resilient links. |
 | P2 | Portability and trust | Validated atomic import/export that excludes licensed rules packages by default and never exports source credentials. |
 
@@ -43,4 +46,4 @@ Authentication/authorization UI, generative AI, bundled third-party rules compen
 
 ## Current slice
 
-Phase 0 plus campaign workspace and rules authoring are complete foundations. The next target is the [v0.1 private rules package milestone](v0.1.md): profile-owned SSH credentials, campaign-initiated Git package loading, ruleset selection, and offline workspace reopening.
+Version 0.1 established private rules package loading and a rules-enabled campaign workspace. The current target is the [v0.2 live-play foundations milestone](v0.2.md): animated 2D dice, a proper character sheet, and an NPC catalog.
