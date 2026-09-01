@@ -1,0 +1,71 @@
+@page "/dice"
+@using AethericGm.Web.Dice
+@inject DiceTrayState Tray
+
+<PageTitle>Dice · Aetheric GM</PageTitle>
+<header class="page-header dice-page-header"><div><p class="eyebrow">Table tools</p><h1>Dice tray</h1><p>Choose your dice, add a modifier, and let them tumble.</p></div></header>
+
+<div class="dice-workspace">
+ <section class="dice-controls panel" aria-labelledby="dice-builder-heading">
+  <div class="dice-section-heading"><div><p class="eyebrow">Build a roll</p><h2 id="dice-builder-heading">What are we rolling?</h2></div><output class="expression" aria-label="Dice expression">@Expression</output></div>
+  <fieldset class="die-picker"><legend>Die type</legend>
+   @foreach (var sides in DiceRollRequest.SupportedSides.Order())
+   {
+    <button type="button" class="die-choice @(selectedSides == sides ? "selected" : null)" aria-pressed="@(selectedSides == sides)" @onclick="() => SelectSides(sides)"><span class="mini-die die-d@(sides)" aria-hidden="true"></span><span>d@sides</span></button>
+   }
+  </fieldset>
+  <div class="roll-options">
+   <label>Dice <span class="number-stepper"><button type="button" aria-label="Remove one die" @onclick="() => ChangeCount(-1)" disabled="@(count <= 1)">−</button><input type="number" min="1" max="100" @bind="count" aria-label="Number of dice" /><button type="button" aria-label="Add one die" @onclick="() => ChangeCount(1)" disabled="@(count >= 100)">+</button></span></label>
+   <label>Modifier <input type="number" min="-999" max="999" @bind="modifier" /></label>
+   <label>Label <input type="text" maxlength="80" @bind="label" placeholder="Untitled roll" /></label>
+  </div>
+  @if (selectedSides == 20 && count == 1)
+  {
+   <fieldset class="mode-picker"><legend>Roll mode</legend>@foreach (var option in Enum.GetValues<DiceRollMode>()) { <button type="button" class="@(mode == option ? "selected" : null)" aria-pressed="@(mode == option)" @onclick="() => mode = option">@ModeLabel(option)</button> }</fieldset>
+  }
+  <button type="button" class="roll-button" @onclick="Roll">Roll @Expression</button>
+ </section>
+
+ <section class="dice-stage panel" aria-labelledby="result-heading">
+  @if (current is null)
+  {
+   <div class="tray-empty"><div class="empty-d20" aria-hidden="true">20</div><h2 id="result-heading">The tray is ready</h2><p>Your result will settle here.</p></div>
+  }
+  else
+  {
+   <div class="result-heading"><div><p class="eyebrow">@current.Request.Label</p><h2 id="result-heading">@ResultHeading(current)</h2></div><span class="result-expression">@current.Request.Expression</span></div>
+   <div class="rolled-dice" aria-label="Rolled dice" @key="current.Id">
+    @foreach (var die in current.Dice)
+    {
+     <div class="rolled-die die-d@(current.Request.Sides) @(die.IsKept ? "kept" : "discarded") @(CriticalClass(current, die))"><span>@die.Value</span>@if (!die.IsKept) { <small>discarded</small> }</div>
+    }
+   </div>
+   <div class="roll-breakdown" aria-live="polite" aria-atomic="true"><span><small>Dice</small><strong>@current.Subtotal</strong></span><span class="operator-sign">@(current.Request.Modifier < 0 ? "−" : "+")</span><span><small>Modifier</small><strong>@Math.Abs(current.Request.Modifier)</strong></span><span class="operator-sign">=</span><span class="grand-total"><small>Total</small><strong>@current.Total</strong></span></div>
+  }
+ </section>
+
+ <section class="roll-history panel" aria-labelledby="history-heading">
+  <div class="history-heading"><div><p class="eyebrow">This session</p><h2 id="history-heading">Recent rolls</h2></div><span>@Tray.History.Count / 20</span></div>
+  @if (Tray.History.Count == 0) { <p class="history-empty">Rolled dice will collect here for quick reference.</p> }
+  else
+  {
+   <ol>@foreach (var result in Tray.History) { <li class="@(result.Id == current?.Id ? "current" : null)"><button type="button" class="history-result" @onclick="() => current = result" aria-label="Show @result.Request.Label result @result.Total"><span><strong>@result.Request.Label</strong><small>@result.Request.Expression · @result.RolledAt.LocalDateTime.ToString("h:mm tt")</small></span><b>@result.Total</b></button><button type="button" class="repeat-roll" @onclick="() => Repeat(result)" aria-label="Repeat @result.Request.Label">↻</button></li> }</ol>
+  }
+ </section>
+</div>
+
+@code {
+ private int selectedSides = 20, count = 1, modifier;
+ private string label = "Untitled roll";
+ private DiceRollMode mode;
+ private DiceRollResult? current;
+ private DiceRollMode EffectiveMode => selectedSides == 20 && count == 1 ? mode : DiceRollMode.Normal;
+ private string Expression => new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode).Expression;
+ private void SelectSides(int sides) { selectedSides = sides; if (sides != 20) mode = DiceRollMode.Normal; }
+ private void ChangeCount(int amount) { count = Math.Clamp(count + amount, 1, 100); if (count != 1) mode = DiceRollMode.Normal; }
+ private void Roll() => current = Tray.Roll(new DiceRollRequest(Math.Clamp(count, 1, 100), selectedSides, Math.Clamp(modifier, -999, 999), EffectiveMode, label));
+ private void Repeat(DiceRollResult result) => current = Tray.Roll(result.Request);
+ private static string ModeLabel(DiceRollMode value) => value switch { DiceRollMode.Advantage => "Advantage", DiceRollMode.Disadvantage => "Disadvantage", _ => "Normal" };
+ private static string ResultHeading(DiceRollResult result) => result.IsNaturalMaximum ? "Natural 20!" : result.IsNaturalMinimum ? "Natural 1" : $"Total {result.Total}";
+ private static string CriticalClass(DiceRollResult result, DieResult die) => die.IsKept && result.Request.Sides == 20 ? die.Value switch { 20 => "critical", 1 => "fumble", _ => "" } : "";
+}

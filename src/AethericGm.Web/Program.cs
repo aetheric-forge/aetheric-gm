@@ -11,6 +11,8 @@ using AethericGm.Infrastructure.Profiles;
 using AethericGm.Web.Profiles;
 using AethericGm.Core.Rules.Packages;
 using AethericGm.Infrastructure.Rules.Packages;
+using AethericGm.Core.Dice;
+using AethericGm.Web.Dice;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -59,6 +61,10 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<IDiceRandomSource, CryptographicDiceRandomSource>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IDiceRoller, DiceRoller>();
+builder.Services.AddScoped<DiceTrayState>();
 
 var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(dataDirectory);
