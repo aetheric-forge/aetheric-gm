@@ -36,6 +36,14 @@ public sealed class Character
     public static Character Rehydrate(Guid id, Guid campaignId, RulesetReference ruleset, IReadOnlyDictionary<string, JsonElement> values,
         DateTimeOffset createdAt, DateTimeOffset updatedAt) => new(id, campaignId, ruleset, values, createdAt, updatedAt);
 
+    public void UpdateValues(IReadOnlyDictionary<string, JsonElement> updatedValues, DateTimeOffset now)
+    {
+        var replacement = Clone(updatedValues);
+        values.Clear();
+        foreach (var pair in replacement) values.Add(pair.Key, pair.Value);
+        UpdatedAt = now;
+    }
+
     private static Dictionary<string, JsonElement> Clone(IReadOnlyDictionary<string, JsonElement> source)
     {
         ArgumentNullException.ThrowIfNull(source);
