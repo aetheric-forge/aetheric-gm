@@ -1,0 +1,77 @@
+@page "/campaigns/{CampaignId:guid}/characters/{CharacterId:guid}"
+@inject ICampaignRepository CampaignRepository
+@inject ICharacterRepository CharacterRepository
+@inject RulesetWorkspaceResolver Rulesets
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using AethericGm.Web.Rules
+
+<PageTitle>@(character?.Name ?? "Character") · Aetheric GM</PageTitle>
+
+@if (character is null || campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">Character sheet</p><h1>Character unavailable</h1><p>@(error ?? "The requested character could not be found in this campaign.")</p></div><a class="quiet action-link" href="/">Back to campaigns</a></header>
+}
+else
+{
+ <header class="page-header character-header"><div><p class="eyebrow">@campaign.Name · Character sheet</p><h1>@character.Name</h1><p>Governed by @character.Ruleset.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+ @if (!string.IsNullOrWhiteSpace(error)) { <p class="save-message error" role="alert">@error</p> }
+ <div class="character-sheet-grid">
+  <section class="panel character-identity"><p class="eyebrow">Identity</p><dl><dt>Name</dt><dd>@character.Name</dd><dt>Ancestry</dt><dd>@(ancestry is null ? "Unresolved ancestry" : Label(ancestry))</dd></dl></section>
+  @if (ancestry is not null)
+  {
+   <section class="panel ancestry-detail"><p class="eyebrow">Ancestry</p><h2>@Label(ancestry)</h2>
+    @foreach (var detail in TextDetails(ancestry)) { <p class="rules-copy">@detail</p> }
+    @if (abilities.Count > 0)
+    {
+     <div class="ability-list"><h3>Abilities</h3>@foreach (var ability in abilities) { <article><strong>@Label(ability)</strong>@foreach (var detail in TextDetails(ability)) { <p>@detail</p> }</article> }</div>
+    }
+   </section>
+  }
+ </div>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ [Parameter] public Guid CharacterId { get; set; }
+ private Campaign? campaign; private Character? character; private RulesetDescriptor? descriptor; private RulesRecord? ancestry; private List<RulesRecord> abilities = []; private string? error;
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  character = await CharacterRepository.GetAsync(CampaignId, CharacterId);
+  descriptor = null; ancestry = null; abilities = []; error = null;
+  if (campaign is null || character is null) return;
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var owner = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   var workspace = await Rulesets.ResolveAsync(character.Ruleset, owner);
+   if (workspace is null) { error = $"The character's pinned ruleset {character.Ruleset} is unavailable. Stored character data remains intact."; return; }
+   descriptor = workspace.Descriptor;
+   ancestry = ResolveReference(character.Values.GetValueOrDefault("ancestry"));
+   if (ancestry is null) { error = "The stored ancestry reference cannot be resolved. Stored character data remains intact."; return; }
+   if (ancestry.Values.TryGetValue("abilities", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.Array)
+    abilities = value.EnumerateArray().Select(ResolveReference).Where(record => record is not null).Cast<RulesRecord>().ToList();
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException or KeyNotFoundException) { error = exception.Message; }
+ }
+
+ private RulesRecord? ResolveReference(System.Text.Json.JsonElement value)
+ {
+  if (descriptor is null || value.ValueKind != System.Text.Json.JsonValueKind.Object || !value.TryGetProperty("recordType", out var type) || !value.TryGetProperty("key", out var key)) return null;
+  return descriptor.Records.FirstOrDefault(record => record.RecordType == type.GetString() && record.Key == key.GetString());
+ }
+
+ private string Label(RulesRecord record)
+ {
+  var display = descriptor?.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return display is not null && record.Values.TryGetValue(display, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString()! : record.Key;
+ }
+
+ private IEnumerable<string> TextDetails(RulesRecord record)
+ {
+  var display = descriptor?.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return record.Values.Where(pair => pair.Key != display && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+   .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
+ }
+}

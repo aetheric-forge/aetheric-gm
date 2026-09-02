@@ -28,15 +28,21 @@ The next rules-authoring and character-creation stories are:
 14. [Save local rules edits safely](14-save-local-rules-edits-safely.md)
 15. [Create a character with an ancestry](15-choose-character-ancestry.md)
 
-The v0.2 live-play stories are:
+The v0.2 live-play stories, in delivery order, are:
 
 16. [Roll animated dice](16-roll-animated-dice.md)
-17. [Use a character sheet during play](17-use-character-sheet.md)
-18. [Manage an NPC catalog](18-manage-npc-catalog.md)
 19. [Roll dice from rules text](19-roll-from-rules-text.md)
+15. [Create a character with an ancestry](15-choose-character-ancestry.md)
+17. [Use a character sheet during play](17-use-character-sheet.md)
 
-Together these form the [v0.2 live-play foundations milestone](../product/v0.2.md). Inline rules rolls are numbered after the original milestone stories but are intended as a companion to the dice tray before character-sheet and NPC work begins.
+Together these form the [v0.2 live-play foundations milestone](../product/v0.2.md), with a release break after Story 17. Inline rules rolls retain their original story number but are delivered alongside the dice tray before character-sheet work.
+
+The next release begins with:
+
+18. [Manage an NPC catalog](18-manage-npc-catalog.md)
+
+Story 18 begins the [v0.3 campaign-world milestone](../product/v0.3.md). Further v0.3 scope will be chosen after v0.2 is released rather than assumed in advance.
 
 An original demonstration package provides the distributable proving examples: attributes contain structured values and temporary modifiers, while heritages are published rules records that can carry flavour text and grant abilities. A separately obtained Shadowdark package may use the same engine, but Shadowdark content is not part of the application repository or release artifacts without an appropriate redistribution license.
 
-Calculations, automatic effects, creation procedures, and persisted character values were intentionally deferred from the rules-authoring sequence. The v0.2 stories can now build on that vocabulary without coupling game state or dice behavior to one rules package.
+Calculations, automatic effects, creation procedures, and persisted character values were intentionally deferred from the rules-authoring sequence. The v0.2 stories build the first persisted character workflow on that vocabulary without coupling game state or dice behavior to one rules package.
