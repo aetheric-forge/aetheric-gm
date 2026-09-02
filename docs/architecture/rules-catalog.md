@@ -108,4 +108,6 @@ An embedded `record` field creates character-owned state. A `rules-reference` fi
 
 The definition describes storage and presentation shape only. Calculations, derived values, conditional fields, automatic effects, character-creation procedures, executable expressions, cross-ruleset inheritance, and arbitrary scripting remain outside this slice. Defaults may be introduced with persisted character values; until then, a missing optional value is distinct from a required value and there is no implicit default.
 
-Published ruleset versions are immutable. Migration of persisted character records between versions will be designed when character persistence is introduced.
+Persisted characters record the exact ruleset ID and version governing their sheet. A rules-reference field stores only the referenced record type and key because the character-level ruleset identity supplies the package boundary. Published labels and declarative content are resolved for display and are not copied into character-owned state.
+
+Published ruleset versions are immutable. Changing a campaign's selected ruleset does not silently migrate existing characters; cross-version character migration remains a separate future design.

@@ -1,0 +1,26 @@
+@using AethericGm.Web.Characters
+
+<div class="character-field">
+ <div class="character-field-heading"><label>@Model.Label</label>@if (Model.IsOptional && Model.Values.Count == 0) { <button type="button" class="quiet" @onclick="Model.Add">Add</button> }</div>
+ @foreach (var value in Model.Values)
+ {
+  <div class="character-value">
+   @if (Model.ValueKind == RecordValueKind.Text)
+   { <input aria-label="@Model.Label" @bind="value.Scalar" /> }
+   else if (Model.ValueKind == RecordValueKind.Integer)
+   { <input aria-label="@Model.Label" type="number" @bind="value.Scalar" /> }
+   else if (Model.ValueKind == RecordValueKind.Boolean)
+   { <select aria-label="@Model.Label" @bind="value.Scalar"><option value="">Choose</option><option value="true">Yes</option><option value="false">No</option></select> }
+   else if (Model.ValueKind == RecordValueKind.RulesReference)
+   { <select aria-label="@Model.Label" @bind="value.Reference"><option value="">Choose @Model.Label.ToLowerInvariant()</option>@foreach (var choice in Model.ReferenceChoices()) { <option value="@($"{choice.RecordType}/{choice.Key}")">@Model.LabelFor(choice)</option> }</select> }
+   else if (Model.ValueKind == RecordValueKind.Record)
+   { <div class="embedded-record">@foreach (var nested in value.Fields) { <CharacterFieldInput Model="nested" /> }</div> }
+   else
+   { <p class="field-unavailable">This character-reference field is not editable in this release.</p> }
+   @if (Model.IsMany || Model.Cardinality == RecordCardinality.Optional) { <button type="button" class="danger remove-character-value" aria-label="Remove @Model.Label" @onclick="() => Model.Remove(value)">Remove</button> }
+  </div>
+ }
+ @if (Model.IsMany) { <button type="button" class="quiet add-character-value" @onclick="Model.Add">Add @Model.Label.ToLowerInvariant()</button> }
+</div>
+
+@code { [Parameter, EditorRequired] public CharacterFieldDraft Model { get; set; } = default!; }

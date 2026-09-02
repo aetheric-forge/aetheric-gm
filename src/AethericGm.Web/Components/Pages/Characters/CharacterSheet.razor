@@ -1,0 +1,159 @@
+@page "/campaigns/{CampaignId:guid}/characters/{CharacterId:guid}"
+@inject ICampaignRepository CampaignRepository
+@inject ICharacterRepository CharacterRepository
+@inject RulesetWorkspaceResolver Rulesets
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DiceTrayState Tray
+@using AethericGm.Web.Rules
+@using AethericGm.Web.Characters
+@using AethericGm.Web.Dice
+
+<PageTitle>@(character?.Name ?? "Character") · Aetheric GM</PageTitle>
+
+@if (character is null || campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">Character sheet</p><h1>Character unavailable</h1><p>@(message ?? "The requested character could not be found in this campaign.")</p></div><a class="quiet action-link" href="/">Back to campaigns</a></header>
+}
+else
+{
+ <header class="page-header character-header"><div><p class="eyebrow">@campaign.Name · Character sheet</p><h1>@character.Name</h1><p>Governed by @character.Ruleset.</p></div><div class="actions">@if (draft is not null) { <button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Saving…" : "Save character")</button> }<a class="quiet action-link" href="/">Back to campaign</a></div></header>
+ @if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")" role="status">@message</p> }
+ @if (diagnostics.Count > 0) { <section class="sheet-diagnostics" role="alert"><strong>Some stored values need attention</strong><ul>@foreach (var diagnostic in diagnostics) { <li>@diagnostic</li> }</ul></section> }
+ <div class="character-sheet-grid">
+  <div class="character-fields">
+   @if (draft is not null)
+   {
+    @foreach (var sheetSection in draft.Sections)
+    {
+     <section class="panel playable-sheet-section">
+      <h2>@sheetSection.Label</h2>
+      @foreach (var field in sheetSection.Fields)
+      {
+       <CharacterFieldInput Model="field" />
+      }
+     </section>
+    }
+   }
+  </div>
+  @if (ancestry is not null)
+  {
+   <section class="panel ancestry-detail"><p class="eyebrow">Ancestry</p><h2>@Label(ancestry)</h2>
+    @foreach (var detail in TextDetails(ancestry)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@RollContext(ancestry)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }
+    @if (abilities.Count > 0)
+    {
+     <div class="ability-list"><h3>Abilities</h3>@foreach (var ability in abilities) { <article><strong>@Label(ability)</strong>@foreach (var detail in TextDetails(ability)) { <p><InlineRulesText Text="@detail" Context="@RollContext(ability)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }</article> }</div>
+    }
+   </section>
+  }
+ </div>
+}
+
+@if (modalResult is not null)
+{
+ <div class="dice-modal-backdrop" role="presentation" tabindex="0" @onclick="CloseDiceModal" @onkeydown="HandleModalKeyDown">
+  <section class="dice-modal panel" role="dialog" aria-modal="true" aria-labelledby="character-roll-result-heading" @onclick:stopPropagation="true">
+   <button class="dice-modal-close" type="button" aria-label="Close dice result" autofocus @onclick="CloseDiceModal">×</button>
+   <DiceRollResultPanel Result="modalResult" HeadingId="character-roll-result-heading" />
+   <div class="dice-modal-actions"><button class="quiet" type="button" @onclick="RepeatInlineRoll">Roll again</button><a class="primary action-link" href="/dice">Open dice tray</a></div>
+  </section>
+ </div>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ [Parameter] public Guid CharacterId { get; set; }
+ private Campaign? campaign; private Character? character; private RulesetDescriptor? descriptor; private CharacterSheetDefinition? definition; private CharacterSheetDraft? draft; private RulesRecord? ancestry; private List<RulesRecord> abilities = []; private List<string> diagnostics = []; private string? message; private bool hasError, saving; private DiceRollResult? modalResult;
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  character = await CharacterRepository.GetAsync(CampaignId, CharacterId);
+  descriptor = null; definition = null; draft = null; ancestry = null; abilities = []; diagnostics = []; message = null; hasError = false;
+  if (campaign is null || character is null) return;
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var owner = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   var workspace = await Rulesets.ResolveAsync(character.Ruleset, owner);
+   if (workspace is null) { message = $"The character's pinned ruleset {character.Ruleset} is unavailable. Stored character data remains intact."; hasError = true; return; }
+   descriptor = workspace.Descriptor;
+   definition = workspace.CharacterSheet;
+   if (definition is null) { message = "The pinned ruleset does not provide a character-sheet definition. Stored character data remains intact."; hasError = true; return; }
+   draft = new CharacterSheetDraft(definition, descriptor, character.Values);
+   diagnostics = new CharacterSheetValueValidator(descriptor, definition).Validate(character.Values).ToList();
+   ancestry = ResolveReference(character.Values.GetValueOrDefault("ancestry"));
+   if (ancestry is null) { message = "The stored ancestry reference cannot be resolved. Stored character data remains intact."; hasError = true; return; }
+   if (ancestry.Values.TryGetValue("abilities", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.Array)
+    abilities = value.EnumerateArray().Select(ResolveReference).Where(record => record is not null).Cast<RulesRecord>().ToList();
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException or KeyNotFoundException) { message = exception.Message; hasError = true; }
+ }
+
+ private async Task SaveAsync()
+ {
+  if (character is null || descriptor is null || definition is null || draft is null) return;
+  saving = true; message = null; hasError = false;
+  try
+  {
+   var values = draft.Build();
+   diagnostics = new CharacterSheetValueValidator(descriptor, definition).Validate(values).ToList();
+   if (diagnostics.Count > 0) throw new InvalidDataException("Character values were not saved. Correct the identified fields and try again.");
+   character.UpdateValues(values, DateTimeOffset.UtcNow); await CharacterRepository.SaveAsync(character);
+   message = "Character saved."; ancestry = ResolveReference(character.Values.GetValueOrDefault("ancestry")); abilities = [];
+   if (ancestry?.Values.TryGetValue("abilities", out var abilityValues) == true && abilityValues.ValueKind == System.Text.Json.JsonValueKind.Array)
+    abilities = abilityValues.EnumerateArray().Select(ResolveReference).Where(record => record is not null).Cast<RulesRecord>().ToList();
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { message = exception.Message; hasError = true; }
+  finally { saving = false; }
+ }
+
+ private RulesRecord? ResolveReference(System.Text.Json.JsonElement value)
+ {
+  if (descriptor is null || value.ValueKind != System.Text.Json.JsonValueKind.Object || !value.TryGetProperty("recordType", out var type) || !value.TryGetProperty("key", out var key)) return null;
+  return descriptor.Records.FirstOrDefault(record => record.RecordType == type.GetString() && record.Key == key.GetString());
+ }
+
+ private string Label(RulesRecord record)
+ {
+  var display = descriptor?.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return display is not null && record.Values.TryGetValue(display, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString()! : record.Key;
+ }
+
+ private IEnumerable<string> TextDetails(RulesRecord record)
+ {
+  var display = descriptor?.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return record.Values.Where(pair => pair.Key != display && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+   .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
+ }
+
+ private DiceRollContext RollContext(RulesRecord record) => new("character", character!.Id.ToString(), $"{character.Name} · {Label(record)}");
+ private void RollInline(DiceRollRequest request) => modalResult = Tray.Roll(request);
+ private void RepeatInlineRoll() { if (modalResult is not null) modalResult = Tray.Roll(modalResult.Request); }
+ private void CloseDiceModal() => modalResult = null;
+ private void HandleModalKeyDown(KeyboardEventArgs eventArgs) { if (eventArgs.Key == "Escape") CloseDiceModal(); }
+
+ private int? ResolveCharacterValue(string path)
+ {
+  if (character is null) return null;
+  var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries);
+  if (segments.Length == 2 && segments[0] is "ability" or "attribute" && character.Values.TryGetValue(segments[1], out var attribute))
+   return IntegerFromRecord(attribute);
+  if (segments.Length == 0 || !character.Values.TryGetValue(segments[0], out var current)) return null;
+  foreach (var segment in segments.Skip(1))
+  {
+   if (current.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+   if (current.TryGetProperty(segment, out var direct)) current = direct;
+   else if (current.TryGetProperty("values", out var values) && values.ValueKind == System.Text.Json.JsonValueKind.Object && values.TryGetProperty(segment, out var nested)) current = nested;
+   else return null;
+  }
+  return current.TryGetInt32(out var value) ? value : IntegerFromRecord(current);
+ }
+
+ private static int? IntegerFromRecord(System.Text.Json.JsonElement value)
+ {
+  if (value.ValueKind == System.Text.Json.JsonValueKind.Number && value.TryGetInt32(out var direct)) return direct;
+  if (value.ValueKind != System.Text.Json.JsonValueKind.Object || !value.TryGetProperty("values", out var values)) return null;
+  if (values.TryGetProperty("bonus", out var bonus) && bonus.TryGetInt32(out var bonusValue)) return bonusValue;
+  return values.TryGetProperty("value", out var score) && score.TryGetInt32(out var scoreValue) ? scoreValue : null;
+ }
+}

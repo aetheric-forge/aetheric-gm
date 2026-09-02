@@ -1,5 +1,7 @@
 # Manage an NPC catalog
 
+Milestone: [v0.3 campaign world](../product/v0.3.md)
+
 As a game master preparing and running a campaign, I want to find, create, and use NPCs from a campaign catalog so that recurring people and ready-to-run adversaries are available without searching through notes or rules books.
 
 ## Outcome
@@ -23,4 +25,3 @@ The campaign provides a searchable catalog of campaign-owned NPCs alongside comp
 ## Not included
 
 Encounter composition, initiative, automated combat, tactical maps, procedural NPC generation, bulk package-to-campaign copying, cross-version migration, multiplayer ownership, or player-facing NPC views.
-

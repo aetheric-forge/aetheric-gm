@@ -13,6 +13,9 @@ using AethericGm.Core.Rules.Packages;
 using AethericGm.Infrastructure.Rules.Packages;
 using AethericGm.Core.Dice;
 using AethericGm.Web.Dice;
+using AethericGm.Core.Characters;
+using AethericGm.Infrastructure.Characters;
+using AethericGm.Web.Rules;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -81,10 +84,14 @@ builder.Services.AddSingleton<IRulesPackageInstaller>(services => new GitRulesPa
 var campaignRepository = new SqliteCampaignRepository(databaseConnectionString);
 await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
+var characterRepository = new SqliteCharacterRepository(databaseConnectionString);
+await characterRepository.InitializeAsync();
+builder.Services.AddSingleton<ICharacterRepository>(characterRepository);
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
 var rulesCatalog = new FileRulesCatalog(rulesCatalogPath);
 builder.Services.AddSingleton<IRulesCatalog>(rulesCatalog);
 builder.Services.AddSingleton<ICharacterSheetDefinitionStore>(new FileCharacterSheetDefinitionStore(rulesCatalogPath, rulesCatalog));
+builder.Services.AddSingleton<RulesetWorkspaceResolver>();
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(

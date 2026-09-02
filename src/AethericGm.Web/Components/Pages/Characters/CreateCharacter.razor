@@ -1,0 +1,83 @@
+@page "/campaigns/{CampaignId:guid}/characters/new"
+@inject ICampaignRepository CampaignRepository
+@inject ICharacterRepository CharacterRepository
+@inject RulesetWorkspaceResolver Rulesets
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using AethericGm.Web.Rules
+
+<PageTitle>Create character · Aetheric GM</PageTitle>
+
+@if (campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">Character creation</p><h1>Campaign unavailable</h1><p>@(error ?? "The requested campaign could not be found.")</p></div></header>
+}
+else
+{
+ <header class="page-header"><div><p class="eyebrow">@campaign.Name · Character creation</p><h1>Create a character</h1><p>@(creation is null ? "This campaign is not ready to create characters." : $"Create a character governed by {creation.Ruleset.Name} {creation.Ruleset.Reference.Version}.")</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+ @if (!string.IsNullOrWhiteSpace(error)) { <p class="save-message error" role="alert">@error</p> }
+ @if (creation is not null)
+ {
+  <section class="character-creation panel">
+   <label>@creation.NameField.Label <input @bind="name" autofocus autocomplete="off" /></label>
+   <fieldset class="ancestry-picker">
+    <legend>@creation.AncestryField.Label</legend>
+    @foreach (var ancestry in creation.Ancestries)
+    {
+     var token = $"{ancestry.RecordType}/{ancestry.Key}";
+     <label class="ancestry-choice @(ancestryToken == token ? "selected" : "")">
+      <input type="radio" name="ancestry" value="@token" @onchange="() => ancestryToken = token" checked="@(ancestryToken == token)" />
+      <span><strong>@creation.Label(ancestry)</strong>@foreach (var detail in TextDetails(ancestry)) { <small>@detail</small> }</span>
+     </label>
+    }
+   </fieldset>
+   <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Creating…" : "Create character")</button><a class="quiet action-link" href="/">Cancel</a></div>
+  </section>
+ }
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ private Campaign? campaign; private CharacterCreationDefinition? creation; private string name = ""; private string ancestryToken = ""; private string? error; private bool saving;
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId); creation = null; error = null;
+  if (campaign is null) return;
+  if (campaign.Ruleset is null) { error = "Select a ruleset for this campaign before creating a character."; return; }
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var owner = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   var workspace = await Rulesets.ResolveAsync(campaign.Ruleset, owner);
+   if (workspace is null) { error = $"The pinned ruleset {campaign.Ruleset} is unavailable."; return; }
+   if (workspace.CharacterSheet is null) { error = $"{workspace.Descriptor.Name} does not provide a character-sheet definition."; return; }
+   creation = new CharacterCreationDefinition(workspace.Descriptor, workspace.CharacterSheet);
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { error = exception.Message; }
+ }
+
+ private async Task SaveAsync()
+ {
+  if (campaign?.Ruleset is null || creation is null) return;
+  saving = true; error = null;
+  try
+  {
+   var parts = ancestryToken.Split('/', 2);
+   if (parts.Length != 2) throw new ArgumentException("Choose an ancestry.");
+   var values = creation.CreateValues(name, new RulesRecordReference(parts[0], parts[1]));
+   var character = Character.Create(campaign.Id, campaign.Ruleset, values, DateTimeOffset.UtcNow);
+   await CharacterRepository.SaveAsync(character);
+   Navigation.NavigateTo($"/campaigns/{campaign.Id}/characters/{character.Id}");
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException) { error = exception.Message; }
+  finally { saving = false; }
+ }
+
+ private IEnumerable<string> TextDetails(RulesRecord record)
+ {
+  var displayField = creation?.Ruleset.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return record.Values.Where(pair => pair.Key != displayField && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+   .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
+ }
+}
