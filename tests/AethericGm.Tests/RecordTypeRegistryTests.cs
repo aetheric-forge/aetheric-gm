@@ -1,9 +1,21 @@
 using AethericGm.Core.Rules.Records;
+using System.Text.Json;
 
 namespace AethericGm.Tests;
 
 public sealed class RecordTypeRegistryTests
 {
+    [Fact]
+    public void Serializes_rules_record_references_using_package_property_names()
+    {
+        var reference = JsonSerializer.SerializeToElement(new RulesRecordReference("ability", "farsight"));
+
+        Assert.Equal("ability", reference.GetProperty("recordType").GetString());
+        Assert.Equal("farsight", reference.GetProperty("key").GetString());
+        Assert.False(reference.TryGetProperty("RecordType", out _));
+        Assert.False(reference.TryGetProperty("Key", out _));
+    }
+
     [Fact]
     public void Resolves_inherited_fields_and_subtype_compatibility()
     {

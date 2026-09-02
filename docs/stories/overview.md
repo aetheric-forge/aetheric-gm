@@ -26,7 +26,7 @@ The next rules-authoring and character-creation stories are:
 12. [Organize rules content in a catalog](12-organize-rules-catalog.md)
 13. [Edit a local rules catalog](13-edit-rules-catalog.md)
 14. [Save local rules edits safely](14-save-local-rules-edits-safely.md)
-15. [Choose an ancestry during character creation](15-choose-character-ancestry.md)
+15. [Create a character with an ancestry](15-choose-character-ancestry.md)
 
 The v0.2 live-play stories are:
 
