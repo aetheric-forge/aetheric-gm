@@ -53,21 +53,24 @@ else
    </section>
   </div>
 
-  @if (npc.Source is not null)
-  {
-   <section class="panel ancestry-detail">
-    <p class="eyebrow">Source record</p>
-    @if (sourceRecord is not null)
-    {
-     <h2>@Label(sourceRecord)</h2>
-     @foreach (var detail in TextDetails(sourceRecord)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@SourceContext" OnRoll="RollInline" /></p> }
-    }
-    else
-    {
-     <p class="catalog-empty">@(sourceMessage ?? "The source rules record is unavailable. This NPC's own data remains readable.")</p>
-    }
-   </section>
-  }
+  <div>
+   @if (npc.Source is not null)
+   {
+    <section class="panel ancestry-detail">
+     <p class="eyebrow">Source record</p>
+     @if (sourceRecord is not null)
+     {
+      <h2>@Label(sourceRecord)</h2>
+      @foreach (var detail in TextDetails(sourceRecord)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@SourceContext" OnRoll="RollInline" /></p> }
+     }
+     else
+     {
+      <p class="catalog-empty">@(sourceMessage ?? "The source rules record is unavailable. This NPC's own data remains readable.")</p>
+     }
+    </section>
+   }
+   <RelationshipsPanel CampaignId="CampaignId" Subject="@(new EntityReference(EntityKind.Npc, NpcId))" />
+  </div>
  </div>
 }
 

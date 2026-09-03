@@ -1,0 +1,119 @@
+@inject ICampaignRelationshipRepository Relationships
+@inject CampaignEntityDirectory Directory
+
+<section class="panel relationships-panel">
+ <div class="record-heading"><h2>Relationships</h2></div>
+ @if (!string.IsNullOrWhiteSpace(error))
+ {
+  <p class="error">@error</p>
+ }
+ @if (rows.Count == 0)
+ {
+  <p class="catalog-empty">No relationships yet.</p>
+ }
+ else
+ {
+  <div class="relationship-list">
+   @foreach (var row in rows)
+   {
+    <div class="relationship-row">
+     <span class="relationship-arrow">@Arrow(row)</span>
+     <span class="relationship-label">@row.Relationship.Label</span>
+     @if (row.Other is not null)
+     {
+      <a class="relationship-target" href="@TargetUrl(row.Other.Reference)">@row.Other.Name</a>
+     }
+     else
+     {
+      <span class="relationship-target unavailable">Unavailable</span>
+     }
+     @if (row.Relationship.IsSecret)
+     {
+      <span class="badge">Secret</span>
+     }
+     <button class="danger" type="button" @onclick="() => RemoveAsync(row.Relationship)">Remove</button>
+    </div>
+   }
+  </div>
+ }
+
+ <div class="field-row relationship-form">
+  <label>Connect to
+   <select @bind="targetToken">
+    <option value="">Choose an entry…</option>
+    @foreach (var candidate in candidates)
+    {
+     <option value="@Token(candidate.Reference)">@candidate.Name (@candidate.Reference.Kind)</option>
+    }
+   </select>
+  </label>
+  <label>Label <input @bind="label" placeholder="reports to, rival of, member of…" /></label>
+  <label class="checkbox-field"><input type="checkbox" @bind="isSymmetric" /> Symmetric</label>
+  <label class="checkbox-field"><input type="checkbox" @bind="isSecret" /> Secret</label>
+  <div class="actions"><button class="quiet" type="button" @onclick="AddAsync">Add relationship</button></div>
+ </div>
+</section>
+
+@code {
+ [Parameter, EditorRequired] public Guid CampaignId { get; set; }
+ [Parameter, EditorRequired] public EntityReference Subject { get; set; } = null!;
+
+ private List<RelationshipRow> rows = [];
+ private List<CampaignEntitySummary> candidates = [];
+ private string targetToken = ""; private string label = ""; private bool isSymmetric; private bool isSecret; private string? error;
+
+ protected override async Task OnParametersSetAsync()
+ {
+  error = null;
+  var all = await Directory.ListAsync(CampaignId);
+  candidates = all.Where(summary => summary.Reference != Subject).ToList();
+  var relationships = await Relationships.ListForEntityAsync(CampaignId, Subject);
+  var built = new List<RelationshipRow>();
+  foreach (var relationship in relationships)
+  {
+   var otherRef = relationship.From == Subject ? relationship.To : relationship.From;
+   var other = await Directory.FindAsync(CampaignId, otherRef);
+   built.Add(new RelationshipRow(relationship, other));
+  }
+  rows = built;
+ }
+
+ private async Task AddAsync()
+ {
+  error = null;
+  if (string.IsNullOrWhiteSpace(targetToken)) { error = "Choose an entry to connect to."; return; }
+  try
+  {
+   var relationship = Relationship.Create(CampaignId, Subject, ParseToken(targetToken), label, isSymmetric, isSecret, DateTimeOffset.UtcNow);
+   await Relationships.SaveAsync(relationship);
+   targetToken = ""; label = ""; isSymmetric = false; isSecret = false;
+   await OnParametersSetAsync();
+  }
+  catch (ArgumentException exception) { error = exception.Message; }
+ }
+
+ private async Task RemoveAsync(Relationship relationship)
+ {
+  await Relationships.DeleteAsync(CampaignId, relationship.Id);
+  await OnParametersSetAsync();
+ }
+
+ private string Arrow(RelationshipRow row)
+ {
+  if (row.Relationship.IsSymmetric) return "↔";
+  return row.Relationship.From == Subject ? "→" : "←";
+ }
+
+ private string TargetUrl(EntityReference reference) => reference.Kind == EntityKind.Npc
+  ? $"/campaigns/{CampaignId}/npcs/{reference.Id}"
+  : $"/campaigns/{CampaignId}/people/{reference.Id}";
+
+ private static string Token(EntityReference reference) => $"{reference.Kind}/{reference.Id}";
+ private static EntityReference ParseToken(string token)
+ {
+  var parts = token.Split('/', 2);
+  return new EntityReference(Enum.Parse<EntityKind>(parts[0]), Guid.Parse(parts[1]));
+ }
+
+ private sealed record RelationshipRow(Relationship Relationship, CampaignEntitySummary? Other);
+}

@@ -1,0 +1,99 @@
+@page "/campaigns/{CampaignId:guid}/people"
+@inject ICampaignRepository CampaignRepository
+@inject ICampaignEntityRepository EntityRepository
+@inject CampaignEntityDirectory Directory
+@inject NavigationManager Navigation
+
+<PageTitle>People &amp; factions · Aetheric GM</PageTitle>
+
+@if (campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">People &amp; factions</p><h1>Campaign unavailable</h1><p>The requested campaign could not be found.</p></div></header>
+}
+else
+{
+ <header class="page-header"><div><p class="eyebrow">@campaign.Name · People &amp; factions</p><h1>People &amp; factions</h1><p>Campaign-owned people and factions alongside the NPCs from Story 18, searchable together.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+
+ <section class="npc-toolbar panel field-row">
+  <label>Search <input @bind="search" @bind:event="oninput" placeholder="Name" /></label>
+  <label>Tag <select @bind="tagFilter"><option value="">Any</option>@foreach (var tag in Distinct(summaries.SelectMany(summary => summary.Tags))) { <option value="@tag">@tag</option> }</select></label>
+  <label>Role <select @bind="roleFilter"><option value="">Any</option>@foreach (var value in Distinct(summaries.Select(summary => summary.Role))) { <option value="@value">@value</option> }</select></label>
+  <label>Status <select @bind="statusFilter"><option value="">Any</option>@foreach (var value in Distinct(summaries.Select(summary => summary.Status))) { <option value="@value">@value</option> }</select></label>
+ </section>
+
+ <section class="panel">
+  <div class="record-heading"><div><h2>New person or faction</h2></div></div>
+  @if (!string.IsNullOrWhiteSpace(createError))
+  {
+   <p class="error">@createError</p>
+  }
+  <div class="field-row">
+   <label>Name <input @bind="newName" placeholder="A name for this campaign-owned entry" /></label>
+   <div class="actions">
+    <button class="primary" @onclick="() => CreateAsync(EntityKind.Person)">Create person</button>
+    <button class="quiet" @onclick="() => CreateAsync(EntityKind.Faction)">Create faction</button>
+   </div>
+  </div>
+ </section>
+
+ <section class="panel campaign-npcs">
+  <div class="record-heading"><div><p class="eyebrow">Campaign-owned</p><h2>Catalog</h2></div></div>
+  @if (FilteredSummaries.Count == 0)
+  {
+   <p class="catalog-empty">No entries match. Create one above.</p>
+  }
+  else
+  {
+   <div class="character-list npc-list">
+    @foreach (var summary in FilteredSummaries)
+    {
+     <a href="@Url(summary)">
+      <strong>@summary.Name</strong>
+      <span class="badge">@summary.Reference.Kind</span>
+      <small>@Detail(summary)</small>
+     </a>
+    }
+   </div>
+  }
+ </section>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ private Campaign? campaign; private List<CampaignEntitySummary> summaries = [];
+ private string search = ""; private string tagFilter = ""; private string roleFilter = ""; private string statusFilter = "";
+ private string newName = ""; private string? createError;
+
+ private List<CampaignEntitySummary> FilteredSummaries => summaries.Where(summary =>
+  (string.IsNullOrWhiteSpace(search) || summary.Name.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(tagFilter) || summary.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(roleFilter) || string.Equals(summary.Role, roleFilter, StringComparison.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(statusFilter) || string.Equals(summary.Status, statusFilter, StringComparison.OrdinalIgnoreCase))).ToList();
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  summaries = campaign is null ? [] : (await Directory.ListAsync(CampaignId)).ToList();
+ }
+
+ private async Task CreateAsync(EntityKind kind)
+ {
+  createError = null;
+  try
+  {
+   var entity = CampaignEntity.Create(CampaignId, kind, newName, DateTimeOffset.UtcNow);
+   await EntityRepository.SaveAsync(entity);
+   Navigation.NavigateTo($"/campaigns/{CampaignId}/people/{entity.Id}");
+  }
+  catch (ArgumentException exception) { createError = exception.Message; }
+ }
+
+ private string Url(CampaignEntitySummary summary) => summary.Reference.Kind == EntityKind.Npc
+  ? $"/campaigns/{CampaignId}/npcs/{summary.Reference.Id}"
+  : $"/campaigns/{CampaignId}/people/{summary.Reference.Id}";
+
+ private static IEnumerable<string> Distinct(IEnumerable<string?> values) =>
+  values.Where(value => !string.IsNullOrWhiteSpace(value)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
+
+ private static string Detail(CampaignEntitySummary summary) => string.Join(" · ", new[] { summary.Role, summary.Status }.Where(value => !string.IsNullOrWhiteSpace(value)));
+}

@@ -1,0 +1,83 @@
+@page "/campaigns/{CampaignId:guid}/people/{EntityId:guid}"
+@inject ICampaignRepository CampaignRepository
+@inject ICampaignEntityRepository EntityRepository
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>@(entity?.Name ?? "Entry") · Aetheric GM</PageTitle>
+
+@if (campaign is null || entity is null)
+{
+ <header class="page-header"><div><p class="eyebrow">People &amp; factions</p><h1>Entry unavailable</h1><p>The requested entry could not be found in this campaign.</p></div><a class="quiet action-link" href="/campaigns/@CampaignId/people">Back to catalog</a></header>
+}
+else
+{
+ <header class="page-header character-header"><div><p class="eyebrow">@campaign.Name · @entity.Kind</p><h1>@entity.Name</h1></div><div class="actions"><a class="quiet action-link" href="/campaigns/@CampaignId/people">Back to catalog</a><button class="danger" @onclick="RemoveAsync">Remove</button></div></header>
+ @if (!string.IsNullOrWhiteSpace(message))
+ {
+  <p class="save-message @(hasError ? "error" : "")" role="status">@message</p>
+ }
+
+ <div class="character-sheet-grid">
+  <div class="character-fields">
+   <section class="panel">
+    <h2>Details</h2>
+    <div class="field-row"><label>Name <input @bind="draft.Name" /></label><label>Role <input @bind="draft.Role" placeholder="Merchant, faction leader…" /></label></div>
+    <label>Status <input @bind="draft.Status" placeholder="Active, missing, disbanded…" /></label>
+    <label>Tags <input @bind="draft.Tags" placeholder="comma, separated, tags" /></label>
+    <label>Notes <textarea @bind="draft.Notes" rows="5"></textarea></label>
+    <label class="checkbox-field"><input type="checkbox" @bind="draft.NotesAreSecret" /> Notes are GM-only secret</label>
+    <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Saving…" : "Save")</button></div>
+   </section>
+  </div>
+  <div>
+   <RelationshipsPanel CampaignId="CampaignId" Subject="@(new EntityReference(entity.Kind, entity.Id))" />
+  </div>
+ </div>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ [Parameter] public Guid EntityId { get; set; }
+ private Campaign? campaign; private CampaignEntity? entity; private string? message; private bool hasError, saving; private Draft draft = new();
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  entity = await EntityRepository.GetAsync(CampaignId, EntityId);
+  message = null; hasError = false;
+  if (campaign is null || entity is null) return;
+  draft = Draft.From(entity);
+ }
+
+ private async Task SaveAsync()
+ {
+  if (entity is null) return;
+  saving = true; message = null; hasError = false;
+  try
+  {
+   var tags = draft.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+   entity.Update(draft.Name, draft.Notes, draft.NotesAreSecret, tags, draft.Role, draft.Status, DateTimeOffset.UtcNow);
+   await EntityRepository.SaveAsync(entity);
+   draft = Draft.From(entity);
+   message = "Saved.";
+  }
+  catch (ArgumentException exception) { message = exception.Message; hasError = true; }
+  finally { saving = false; }
+ }
+
+ private async Task RemoveAsync()
+ {
+  if (entity is null) return;
+  if (!await JS.InvokeAsync<bool>("confirm", $"Remove {entity.Name} from this campaign?")) return;
+  await EntityRepository.DeleteAsync(CampaignId, EntityId);
+  Navigation.NavigateTo($"/campaigns/{CampaignId}/people");
+ }
+
+ private sealed class Draft
+ {
+  public string Name { get; set; } = ""; public string? Notes { get; set; } public bool NotesAreSecret { get; set; } public string Tags { get; set; } = "";
+  public string? Role { get; set; } public string? Status { get; set; }
+  public static Draft From(CampaignEntity entity) => new() { Name = entity.Name, Notes = entity.Notes, NotesAreSecret = entity.NotesAreSecret, Tags = string.Join(", ", entity.Tags), Role = entity.Role, Status = entity.Status };
+ }
+}
