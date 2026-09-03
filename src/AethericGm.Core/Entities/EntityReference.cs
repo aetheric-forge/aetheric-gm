@@ -1,6 +1,6 @@
 namespace AethericGm.Core.Entities;
 
-public enum EntityKind { Npc, Person, Faction }
+public enum EntityKind { Npc, Person, Faction, Character }
 
 public sealed record EntityReference
 {

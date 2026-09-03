@@ -12,7 +12,7 @@
 }
 else
 {
- <header class="page-header"><div><p class="eyebrow">@campaign.Name · People &amp; factions</p><h1>People &amp; factions</h1><p>Campaign-owned people and factions alongside the NPCs from Story 18, searchable together.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+ <header class="page-header"><div><p class="eyebrow">@campaign.Name · People &amp; factions</p><h1>People &amp; factions</h1><p>Campaign-owned people and factions alongside NPCs and player characters, searchable together.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
 
  <section class="npc-toolbar panel field-row">
   <label>Search <input @bind="search" @bind:event="oninput" placeholder="Name" /></label>
@@ -88,9 +88,12 @@ else
   catch (ArgumentException exception) { createError = exception.Message; }
  }
 
- private string Url(CampaignEntitySummary summary) => summary.Reference.Kind == EntityKind.Npc
-  ? $"/campaigns/{CampaignId}/npcs/{summary.Reference.Id}"
-  : $"/campaigns/{CampaignId}/people/{summary.Reference.Id}";
+ private string Url(CampaignEntitySummary summary) => summary.Reference.Kind switch
+ {
+  EntityKind.Npc => $"/campaigns/{CampaignId}/npcs/{summary.Reference.Id}",
+  EntityKind.Character => $"/campaigns/{CampaignId}/characters/{summary.Reference.Id}",
+  _ => $"/campaigns/{CampaignId}/people/{summary.Reference.Id}"
+ };
 
  private static IEnumerable<string> Distinct(IEnumerable<string?> values) =>
   values.Where(value => !string.IsNullOrWhiteSpace(value)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase);

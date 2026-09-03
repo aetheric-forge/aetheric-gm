@@ -35,16 +35,19 @@ else
     }
    }
   </div>
-  @if (ancestry is not null)
-  {
-   <section class="panel ancestry-detail"><p class="eyebrow">Ancestry</p><h2>@Label(ancestry)</h2>
-    @foreach (var detail in TextDetails(ancestry)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@RollContext(ancestry)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }
-    @if (abilities.Count > 0)
-    {
-     <div class="ability-list"><h3>Abilities</h3>@foreach (var ability in abilities) { <article><strong>@Label(ability)</strong>@foreach (var detail in TextDetails(ability)) { <p><InlineRulesText Text="@detail" Context="@RollContext(ability)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }</article> }</div>
-    }
-   </section>
-  }
+  <div>
+   @if (ancestry is not null)
+   {
+    <section class="panel ancestry-detail"><p class="eyebrow">Ancestry</p><h2>@Label(ancestry)</h2>
+     @foreach (var detail in TextDetails(ancestry)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@RollContext(ancestry)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }
+     @if (abilities.Count > 0)
+     {
+      <div class="ability-list"><h3>Abilities</h3>@foreach (var ability in abilities) { <article><strong>@Label(ability)</strong>@foreach (var detail in TextDetails(ability)) { <p><InlineRulesText Text="@detail" Context="@RollContext(ability)" ValueResolver="ResolveCharacterValue" OnRoll="RollInline" /></p> }</article> }</div>
+     }
+    </section>
+   }
+   <RelationshipsPanel CampaignId="CampaignId" Subject="@(new EntityReference(EntityKind.Character, CharacterId))" />
+  </div>
  </div>
 }
 

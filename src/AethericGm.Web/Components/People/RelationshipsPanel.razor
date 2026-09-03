@@ -104,9 +104,12 @@
   return row.Relationship.From == Subject ? "→" : "←";
  }
 
- private string TargetUrl(EntityReference reference) => reference.Kind == EntityKind.Npc
-  ? $"/campaigns/{CampaignId}/npcs/{reference.Id}"
-  : $"/campaigns/{CampaignId}/people/{reference.Id}";
+ private string TargetUrl(EntityReference reference) => reference.Kind switch
+ {
+  EntityKind.Npc => $"/campaigns/{CampaignId}/npcs/{reference.Id}",
+  EntityKind.Character => $"/campaigns/{CampaignId}/characters/{reference.Id}",
+  _ => $"/campaigns/{CampaignId}/people/{reference.Id}"
+ };
 
  private static string Token(EntityReference reference) => $"{reference.Kind}/{reference.Id}";
  private static EntityReference ParseToken(string token)
