@@ -8,6 +8,7 @@ using AethericGm.Core.Profiles;
 using AethericGm.Core.Rules;
 using AethericGm.Core.Rules.Packages;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 
 namespace AethericGm.Infrastructure.Rules.Packages;
@@ -16,6 +17,7 @@ public sealed partial class GitRulesPackageInstaller(
     string connectionString,
     string packageRoot,
     ISshCredentialService credentials,
+    ILogger<GitRulesPackageInstaller>? logger = null,
     TimeProvider? timeProvider = null) : IRulesPackageInstaller
 {
     private static readonly string[] PackageFiles = ["manifest.json", "record-types.json", "records.json", "character-sheet.json", "catalog.json"];
@@ -155,7 +157,11 @@ public sealed partial class GitRulesPackageInstaller(
         }
         catch (RulesPackageInstallException) { throw; }
         catch (OperationCanceledException) { throw; }
-        catch { throw new RulesPackageInstallException("The repository could not be acquired. Check its address, revision, credential, and passphrase."); }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Rules package acquisition from {Host} failed unexpectedly.", source.Host);
+            throw new RulesPackageInstallException("The repository could not be acquired. Check its address, revision, credential, and passphrase.");
+        }
         finally
         {
             if (passphraseServer is not null) await passphraseServer.DisposeAsync();
@@ -193,7 +199,7 @@ public sealed partial class GitRulesPackageInstaller(
         return arguments;
     }
 
-    private static async Task<string> RunGitAsync(string workingDirectory, IReadOnlyList<string> arguments, PassphraseServer? passphrase,
+    private async Task<string> RunGitAsync(string workingDirectory, IReadOnlyList<string> arguments, PassphraseServer? passphrase,
         CancellationToken ct, int outputLimit = 256 * 1024)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = workingDirectory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
@@ -219,8 +225,9 @@ public sealed partial class GitRulesPackageInstaller(
         return stdout;
     }
 
-    private static RulesPackageInstallException GitFailure(string diagnostic)
+    private RulesPackageInstallException GitFailure(string diagnostic)
     {
+        logger?.LogWarning("git/ssh reported: {Diagnostic}", diagnostic.Trim());
         if (diagnostic.Contains("couldn't find remote ref", StringComparison.OrdinalIgnoreCase))
             return new("The requested branch, tag, or commit was not found.");
         if (diagnostic.Contains("Repository not found", StringComparison.OrdinalIgnoreCase))

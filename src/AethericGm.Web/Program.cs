@@ -82,7 +82,8 @@ builder.Services.AddSingleton<ISshPrivateKeyProtector, DataProtectionSshPrivateK
 builder.Services.AddSingleton<ISshCredentialService>(services => new SqliteSshCredentialService(databaseConnectionString, services.GetRequiredService<ISshPrivateKeyProtector>()));
 var installedPackagesPath = Path.Combine(dataDirectory, "RulesPackages");
 builder.Services.AddSingleton<IRulesPackageInstaller>(services => new GitRulesPackageInstaller(
-    databaseConnectionString, installedPackagesPath, services.GetRequiredService<ISshCredentialService>()));
+    databaseConnectionString, installedPackagesPath, services.GetRequiredService<ISshCredentialService>(),
+    services.GetRequiredService<ILogger<GitRulesPackageInstaller>>()));
 var campaignRepository = new SqliteCampaignRepository(databaseConnectionString);
 await campaignRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
