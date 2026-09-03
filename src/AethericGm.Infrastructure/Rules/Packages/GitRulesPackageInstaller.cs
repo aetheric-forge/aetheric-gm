@@ -94,7 +94,10 @@ public sealed partial class GitRulesPackageInstaller(
     {
         var operationRoot = Path.Combine(Path.GetTempPath(), $"aetheric-gm-package-{Guid.NewGuid():N}");
         var repositoryPath = Path.Combine(operationRoot, "repository");
-        var stagingPath = Path.Combine(operationRoot, "package");
+        // Staged under packageRoot itself, not system temp: the final install below is a same-filesystem
+        // rename for atomicity, and Path.GetTempPath() is frequently a separate mount (e.g. tmpfs) from
+        // the app's data directory, where Directory.Move fails with "Invalid cross-device link" (EXDEV).
+        var stagingPath = Path.Combine(packageRoot, ".staging", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repositoryPath);
         Directory.CreateDirectory(stagingPath);
         string? keyPath = null;
@@ -167,6 +170,7 @@ public sealed partial class GitRulesPackageInstaller(
             if (passphraseServer is not null) await passphraseServer.DisposeAsync();
             if (keyPath is not null && File.Exists(keyPath)) File.Delete(keyPath);
             if (Directory.Exists(operationRoot)) Directory.Delete(operationRoot, true);
+            if (Directory.Exists(stagingPath)) Directory.Delete(stagingPath, true);
         }
     }
 
