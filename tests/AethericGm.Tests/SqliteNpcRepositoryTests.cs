@@ -28,8 +28,9 @@ public sealed class SqliteNpcRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task Persists_a_campaign_original_npc()
     {
+        var placeId = Guid.NewGuid();
         var npc = CampaignNpc.Create(campaign.Id, "Grask", null, DateTimeOffset.UtcNow);
-        npc.Update("Grask the Wary", "Keeps to the shadows.", ["goblin", "sentinel"], "Wary", "Old Watchtower", "Alive", DateTimeOffset.UtcNow);
+        npc.Update("Grask the Wary", "Keeps to the shadows.", ["goblin", "sentinel"], "Wary", "Old Watchtower", placeId, "Alive", DateTimeOffset.UtcNow);
         npc.UpdateResources([new NpcResource("HP", 9, 12)], DateTimeOffset.UtcNow);
         await repository.SaveAsync(npc);
 
@@ -38,6 +39,7 @@ public sealed class SqliteNpcRepositoryTests : IAsyncLifetime
         Assert.Equal("Grask the Wary", reopened.Name);
         Assert.Null(reopened.Source);
         Assert.Equal(["goblin", "sentinel"], reopened.Tags);
+        Assert.Equal(placeId, reopened.PlaceId);
         Assert.Equal(9, Assert.Single(reopened.Resources).Current);
         Assert.Equal(npc.Id, Assert.Single(await repository.ListAsync(campaign.Id)).Id);
     }

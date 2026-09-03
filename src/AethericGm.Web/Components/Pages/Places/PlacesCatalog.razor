@@ -1,0 +1,121 @@
+@page "/campaigns/{CampaignId:guid}/places"
+@inject ICampaignRepository CampaignRepository
+@inject ICampaignPlaceRepository PlaceRepository
+@inject NavigationManager Navigation
+
+<PageTitle>Places · Aetheric GM</PageTitle>
+
+@if (campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">Places</p><h1>Campaign unavailable</h1><p>The requested campaign could not be found.</p></div></header>
+}
+else
+{
+ <header class="page-header"><div><p class="eyebrow">@campaign.Name · Places</p><h1>Places</h1><p>Nested locations and the connections between them.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+
+ <section class="npc-toolbar panel field-row">
+  <label>Search <input @bind="search" @bind:event="oninput" placeholder="Name" /></label>
+ </section>
+
+ <section class="panel">
+  <div class="record-heading"><div><h2>New place</h2></div></div>
+  @if (!string.IsNullOrWhiteSpace(createError))
+  {
+   <p class="error">@createError</p>
+  }
+  <div class="field-row">
+   <label>Name <input @bind="newName" placeholder="A region, city, building…" /></label>
+   <label>Parent place <select @bind="newParentId"><option value="">No parent (top-level)</option>@foreach (var place in places) { <option value="@place.Id">@PlaceHierarchy.ContainmentPath(places, place)</option> }</select></label>
+  </div>
+  <div class="actions"><button class="primary" @onclick="CreateAsync">Create place</button></div>
+ </section>
+
+ <section class="panel">
+  <div class="record-heading"><div><p class="eyebrow">Campaign-owned</p><h2>Catalog</h2></div></div>
+  @if (places.Count == 0)
+  {
+   <p class="catalog-empty">No places yet. Create one above.</p>
+  }
+  else if (!string.IsNullOrWhiteSpace(search))
+  {
+   var matches = places.Where(place => place.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).OrderBy(place => place.Name, StringComparer.OrdinalIgnoreCase).ToList();
+   @if (matches.Count == 0)
+   {
+    <p class="catalog-empty">No places match "@search".</p>
+   }
+   else
+   {
+    <div class="place-tree">
+     @foreach (var place in matches)
+     {
+      <a class="place-row" href="/campaigns/@CampaignId/places/@place.Id"><strong>@place.Name</strong><small>@PlaceHierarchy.ContainmentPath(places, place)</small></a>
+     }
+    </div>
+   }
+  }
+  else
+  {
+   <div class="place-tree">
+    @foreach (var row in VisibleRows())
+    {
+     var hasChildren = PlaceHierarchy.Children(places, row.Place.Id).Any();
+     <div class="place-row" style="padding-left:@(row.Depth * 22)px">
+      @if (hasChildren)
+      {
+       <button class="quiet place-toggle" type="button" @onclick="() => Toggle(row.Place.Id)">@(expanded.Contains(row.Place.Id) ? "▾" : "▸")</button>
+      }
+      else
+      {
+       <span class="place-toggle-spacer"></span>
+      }
+      <a href="/campaigns/@CampaignId/places/@row.Place.Id">@row.Place.Name</a>
+     </div>
+    }
+   </div>
+  }
+ </section>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ private Campaign? campaign; private List<Place> places = [];
+ private string search = ""; private string newName = ""; private string newParentId = ""; private string? createError;
+ private HashSet<Guid> expanded = [];
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  places = campaign is null ? [] : (await PlaceRepository.ListAsync(CampaignId)).ToList();
+ }
+
+ private async Task CreateAsync()
+ {
+  createError = null;
+  try
+  {
+   var parentId = Guid.TryParse(newParentId, out var parsed) ? parsed : (Guid?)null;
+   var place = Place.Create(CampaignId, newName, parentId, DateTimeOffset.UtcNow);
+   await PlaceRepository.SaveAsync(place);
+   Navigation.NavigateTo($"/campaigns/{CampaignId}/places/{place.Id}");
+  }
+  catch (ArgumentException exception) { createError = exception.Message; }
+ }
+
+ private void Toggle(Guid placeId) { if (!expanded.Add(placeId)) expanded.Remove(placeId); }
+
+ private IEnumerable<(Place Place, int Depth)> VisibleRows()
+ {
+  foreach (var root in PlaceHierarchy.Children(places, null))
+   foreach (var row in VisibleRows(root, 0))
+    yield return row;
+ }
+
+ private IEnumerable<(Place Place, int Depth)> VisibleRows(Place place, int depth)
+ {
+  yield return (place, depth);
+  if (!expanded.Contains(place.Id)) yield break;
+  foreach (var child in PlaceHierarchy.Children(places, place.Id))
+   foreach (var row in VisibleRows(child, depth + 1))
+    yield return row;
+ }
+}

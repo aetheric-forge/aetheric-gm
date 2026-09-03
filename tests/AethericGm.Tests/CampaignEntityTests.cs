@@ -14,8 +14,9 @@ public class CampaignEntityTests
     public void Update_normalizes_fields_deduplicates_tags_and_tracks_the_secret_flag()
     {
         var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var placeId = Guid.NewGuid();
         var entity = CampaignEntity.Create(Guid.NewGuid(), EntityKind.Faction, "  The Ashen Company  ", now);
-        entity.Update("The Ashen Company", " Mercenaries for hire. ", true, ["Mercenary", "mercenary", " Guild "], " Guild ", " Active ", now.AddHours(1));
+        entity.Update("The Ashen Company", " Mercenaries for hire. ", true, ["Mercenary", "mercenary", " Guild "], " Guild ", " Active ", placeId, now.AddHours(1));
 
         Assert.Equal("The Ashen Company", entity.Name);
         Assert.Equal("Mercenaries for hire.", entity.Notes);
@@ -23,6 +24,7 @@ public class CampaignEntityTests
         Assert.Equal(["Mercenary", "Guild"], entity.Tags);
         Assert.Equal("Guild", entity.Role);
         Assert.Equal("Active", entity.Status);
+        Assert.Equal(placeId, entity.PlaceId);
         Assert.Equal(now.AddHours(1), entity.UpdatedAt);
     }
 }

@@ -12,14 +12,16 @@ public class CampaignNpcTests
     public void Update_normalizes_fields_and_deduplicates_tags()
     {
         var now = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
+        var placeId = Guid.NewGuid();
         var npc = CampaignNpc.Create(Guid.NewGuid(), "  Grask  ", null, now);
-        npc.Update("Grask the Wary", " Keeps to the shadows. ", ["Goblin", "goblin", " Sentinel "], " Wary ", " Old Watchtower ", " Alive ", now.AddHours(1));
+        npc.Update("Grask the Wary", " Keeps to the shadows. ", ["Goblin", "goblin", " Sentinel "], " Wary ", " Old Watchtower ", placeId, " Alive ", now.AddHours(1));
 
         Assert.Equal("Grask the Wary", npc.Name);
         Assert.Equal("Keeps to the shadows.", npc.Notes);
         Assert.Equal(["Goblin", "Sentinel"], npc.Tags);
         Assert.Equal("Wary", npc.Disposition);
         Assert.Equal("Old Watchtower", npc.Location);
+        Assert.Equal(placeId, npc.PlaceId);
         Assert.Equal("Alive", npc.Status);
         Assert.Equal(now.AddHours(1), npc.UpdatedAt);
     }
@@ -29,7 +31,7 @@ public class CampaignNpcTests
     {
         var source = new NpcSource(new RulesetReference("test", "1.0.0"), new RulesRecordReference("npc", "goblin"));
         var npc = CampaignNpc.Create(Guid.NewGuid(), "Grask", source, DateTimeOffset.UtcNow);
-        npc.Update("Grask the Wary", null, [], null, null, null, DateTimeOffset.UtcNow);
+        npc.Update("Grask the Wary", null, [], null, null, null, null, DateTimeOffset.UtcNow);
         Assert.Equal(source, npc.Source);
     }
 

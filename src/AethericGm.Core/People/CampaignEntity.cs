@@ -7,7 +7,7 @@ public sealed class CampaignEntity
     private readonly List<string> tags;
 
     private CampaignEntity(Guid id, Guid campaignId, EntityKind kind, string name, string? notes, bool notesAreSecret,
-        IReadOnlyList<string> tags, string? role, string? status, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+        IReadOnlyList<string> tags, string? role, string? status, Guid? placeId, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
         if (id == Guid.Empty) throw new ArgumentException("Entity ID is required.", nameof(id));
         if (campaignId == Guid.Empty) throw new ArgumentException("Campaign ID is required.", nameof(campaignId));
@@ -21,6 +21,7 @@ public sealed class CampaignEntity
         this.tags = NormalizeTags(tags);
         Role = Normalize(role);
         Status = Normalize(status);
+        PlaceId = placeId;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }
@@ -34,17 +35,18 @@ public sealed class CampaignEntity
     public IReadOnlyList<string> Tags => tags;
     public string? Role { get; private set; }
     public string? Status { get; private set; }
+    public Guid? PlaceId { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public static CampaignEntity Create(Guid campaignId, EntityKind kind, string name, DateTimeOffset now) =>
-        new(Guid.NewGuid(), campaignId, kind, name, null, false, [], null, null, now, now);
+        new(Guid.NewGuid(), campaignId, kind, name, null, false, [], null, null, null, now, now);
 
     public static CampaignEntity Rehydrate(Guid id, Guid campaignId, EntityKind kind, string name, string? notes, bool notesAreSecret,
-        IReadOnlyList<string> tags, string? role, string? status, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
-        new(id, campaignId, kind, name, notes, notesAreSecret, tags, role, status, createdAt, updatedAt);
+        IReadOnlyList<string> tags, string? role, string? status, Guid? placeId, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
+        new(id, campaignId, kind, name, notes, notesAreSecret, tags, role, status, placeId, createdAt, updatedAt);
 
-    public void Update(string name, string? notes, bool notesAreSecret, IReadOnlyList<string> tags, string? role, string? status, DateTimeOffset now)
+    public void Update(string name, string? notes, bool notesAreSecret, IReadOnlyList<string> tags, string? role, string? status, Guid? placeId, DateTimeOffset now)
     {
         Name = RequireName(name);
         Notes = Normalize(notes);
@@ -53,6 +55,7 @@ public sealed class CampaignEntity
         this.tags.AddRange(NormalizeTags(tags));
         Role = Normalize(role);
         Status = Normalize(status);
+        PlaceId = placeId;
         UpdatedAt = now;
     }
 

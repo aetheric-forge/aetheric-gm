@@ -1,0 +1,103 @@
+@page "/campaigns/{CampaignId:guid}/places/{PlaceId:guid}"
+@inject ICampaignRepository CampaignRepository
+@inject ICampaignPlaceRepository PlaceRepository
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>@(place?.Name ?? "Place") · Aetheric GM</PageTitle>
+
+@if (campaign is null || place is null)
+{
+ <header class="page-header"><div><p class="eyebrow">Places</p><h1>Place unavailable</h1><p>The requested place could not be found in this campaign.</p></div><a class="quiet action-link" href="/campaigns/@CampaignId/places">Back to catalog</a></header>
+}
+else
+{
+ <header class="page-header character-header"><div><p class="eyebrow">@campaign.Name · Place</p><h1>@place.Name</h1><p>@PlaceHierarchy.ContainmentPath(places, place)</p></div><div class="actions"><a class="quiet action-link" href="/campaigns/@CampaignId/places">Back to catalog</a><button class="danger" @onclick="RemoveAsync">Remove</button></div></header>
+ @if (!string.IsNullOrWhiteSpace(message))
+ {
+  <p class="save-message @(hasError ? "error" : "")" role="status">@message</p>
+ }
+
+ <div class="character-sheet-grid">
+  <div class="character-fields">
+   <section class="panel">
+    <h2>Details</h2>
+    <label>Name <input @bind="draft.Name" /></label>
+    <label>Parent place <select @bind="draft.ParentId"><option value="">No parent (top-level)</option>@foreach (var candidate in ParentChoices()) { <option value="@candidate.Id">@PlaceHierarchy.ContainmentPath(places, candidate)</option> }</select></label>
+    <label>Notes <textarea @bind="draft.Notes" rows="5"></textarea></label>
+    <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Saving…" : "Save")</button></div>
+   </section>
+
+   <section class="panel">
+    <div class="record-heading"><h2>Children</h2></div>
+    @if (children.Count == 0)
+    {
+     <p class="catalog-empty">No places nested here yet.</p>
+    }
+    else
+    {
+     <div class="character-list npc-list">
+      @foreach (var child in children)
+      {
+       <a href="/campaigns/@CampaignId/places/@child.Id"><strong>@child.Name</strong></a>
+      }
+     </div>
+    }
+   </section>
+  </div>
+  <div>
+   <RelationshipsPanel CampaignId="CampaignId" Subject="@(new EntityReference(EntityKind.Place, PlaceId))" />
+  </div>
+ </div>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ [Parameter] public Guid PlaceId { get; set; }
+ private Campaign? campaign; private Place? place; private List<Place> places = []; private List<Place> children = [];
+ private string? message; private bool hasError, saving; private Draft draft = new();
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  place = await PlaceRepository.GetAsync(CampaignId, PlaceId);
+  message = null; hasError = false;
+  if (campaign is null || place is null) return;
+  places = (await PlaceRepository.ListAsync(CampaignId)).ToList();
+  children = PlaceHierarchy.Children(places, place.Id).ToList();
+  draft = Draft.From(place);
+ }
+
+ private IEnumerable<Place> ParentChoices() => places.Where(candidate => !PlaceHierarchy.WouldCreateCycle(places, PlaceId, candidate.Id));
+
+ private async Task SaveAsync()
+ {
+  if (place is null) return;
+  saving = true; message = null; hasError = false;
+  try
+  {
+   var parentId = Guid.TryParse(draft.ParentId, out var parsed) ? parsed : (Guid?)null;
+   if (PlaceHierarchy.WouldCreateCycle(places, PlaceId, parentId)) throw new ArgumentException("That parent would create a containment cycle.");
+   place.Update(draft.Name, parentId, draft.Notes, DateTimeOffset.UtcNow);
+   await PlaceRepository.SaveAsync(place);
+   draft = Draft.From(place);
+   message = "Saved.";
+  }
+  catch (ArgumentException exception) { message = exception.Message; hasError = true; }
+  finally { saving = false; }
+ }
+
+ private async Task RemoveAsync()
+ {
+  if (place is null) return;
+  if (!await JS.InvokeAsync<bool>("confirm", $"Remove {place.Name}? Its own places will become top-level rather than being removed.")) return;
+  await PlaceRepository.DeleteAsync(CampaignId, PlaceId);
+  Navigation.NavigateTo($"/campaigns/{CampaignId}/places");
+ }
+
+ private sealed class Draft
+ {
+  public string Name { get; set; } = ""; public string ParentId { get; set; } = ""; public string? Notes { get; set; }
+  public static Draft From(Place place) => new() { Name = place.Name, ParentId = place.ParentId?.ToString() ?? "", Notes = place.Notes };
+ }
+}

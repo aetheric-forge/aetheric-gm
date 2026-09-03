@@ -27,8 +27,9 @@ public sealed class SqliteCampaignEntityRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task Persists_a_faction_with_secret_notes_and_tags()
     {
+        var placeId = Guid.NewGuid();
         var entity = CampaignEntity.Create(campaign.Id, EntityKind.Faction, "The Ashen Company", DateTimeOffset.UtcNow);
-        entity.Update("The Ashen Company", "Secretly loyal to the crown.", true, ["mercenary", "guild"], "Guild", "Active", DateTimeOffset.UtcNow);
+        entity.Update("The Ashen Company", "Secretly loyal to the crown.", true, ["mercenary", "guild"], "Guild", "Active", placeId, DateTimeOffset.UtcNow);
         await repository.SaveAsync(entity);
 
         var reopened = await repository.GetAsync(campaign.Id, entity.Id);
@@ -36,6 +37,7 @@ public sealed class SqliteCampaignEntityRepositoryTests : IAsyncLifetime
         Assert.Equal(EntityKind.Faction, reopened.Kind);
         Assert.True(reopened.NotesAreSecret);
         Assert.Equal(["mercenary", "guild"], reopened.Tags);
+        Assert.Equal(placeId, reopened.PlaceId);
         Assert.Equal(entity.Id, Assert.Single(await repository.ListAsync(campaign.Id)).Id);
     }
 

@@ -9,7 +9,7 @@ namespace AethericGm.Infrastructure.Npcs;
 public sealed class SqliteNpcRepository(string connectionString) : INpcRepository
 {
     private const string Columns =
-        "id,campaign_id,source_ruleset_id,source_ruleset_version,source_record_type,source_record_key,name,notes,tags_json,disposition,location,status,resources_json,created_at,updated_at";
+        "id,campaign_id,source_ruleset_id,source_ruleset_version,source_record_type,source_record_key,name,notes,tags_json,disposition,location,place_id,status,resources_json,created_at,updated_at";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -38,6 +38,7 @@ public sealed class SqliteNpcRepository(string connectionString) : INpcRepositor
             CREATE INDEX IF NOT EXISTS ix_npcs_campaign ON npcs(campaign_id, updated_at DESC);
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await AddColumnIfMissingAsync(connection, "place_id", "TEXT", cancellationToken);
     }
 
     public async Task<IReadOnlyList<CampaignNpc>> ListAsync(Guid campaignId, CancellationToken cancellationToken = default)
@@ -70,11 +71,11 @@ public sealed class SqliteNpcRepository(string connectionString) : INpcRepositor
         var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO npcs(id,campaign_id,source_ruleset_id,source_ruleset_version,source_record_type,source_record_key,
-              name,notes,tags_json,disposition,location,status,resources_json,created_at,updated_at)
+              name,notes,tags_json,disposition,location,place_id,status,resources_json,created_at,updated_at)
             VALUES($id,$campaign,$rulesetId,$rulesetVersion,$recordType,$recordKey,
-              $name,$notes,$tags,$disposition,$location,$status,$resources,$created,$updated)
+              $name,$notes,$tags,$disposition,$location,$placeId,$status,$resources,$created,$updated)
             ON CONFLICT(id) DO UPDATE SET name=$name,notes=$notes,tags_json=$tags,disposition=$disposition,
-              location=$location,status=$status,resources_json=$resources,updated_at=$updated;
+              location=$location,place_id=$placeId,status=$status,resources_json=$resources,updated_at=$updated;
             """;
         command.Parameters.AddWithValue("$id", npc.Id.ToString());
         command.Parameters.AddWithValue("$campaign", npc.CampaignId.ToString());
@@ -87,6 +88,7 @@ public sealed class SqliteNpcRepository(string connectionString) : INpcRepositor
         command.Parameters.AddWithValue("$tags", JsonSerializer.Serialize(npc.Tags, JsonOptions));
         command.Parameters.AddWithValue("$disposition", (object?)npc.Disposition ?? DBNull.Value);
         command.Parameters.AddWithValue("$location", (object?)npc.Location ?? DBNull.Value);
+        command.Parameters.AddWithValue("$placeId", (object?)npc.PlaceId?.ToString() ?? DBNull.Value);
         command.Parameters.AddWithValue("$status", (object?)npc.Status ?? DBNull.Value);
         command.Parameters.AddWithValue("$resources", JsonSerializer.Serialize(npc.Resources, JsonOptions));
         command.Parameters.AddWithValue("$created", npc.CreatedAt.ToString("O"));
@@ -114,18 +116,27 @@ public sealed class SqliteNpcRepository(string connectionString) : INpcRepositor
         return connection;
     }
 
+    private static async Task AddColumnIfMissingAsync(SqliteConnection connection, string column, string definition, CancellationToken ct)
+    {
+        var inspect = connection.CreateCommand(); inspect.CommandText = "PRAGMA table_info(npcs)";
+        await using var reader = await inspect.ExecuteReaderAsync(ct); var exists = false;
+        while (await reader.ReadAsync(ct)) if (string.Equals(reader.GetString(1), column, StringComparison.Ordinal)) { exists = true; break; }
+        await reader.DisposeAsync();
+        if (!exists) { var alter = connection.CreateCommand(); alter.CommandText = $"ALTER TABLE npcs ADD COLUMN {column} {definition}"; await alter.ExecuteNonQueryAsync(ct); }
+    }
+
     private static CampaignNpc Read(SqliteDataReader reader)
     {
         var source = reader.IsDBNull(2) ? null : new NpcSource(
             new RulesetReference(reader.GetString(2), reader.GetString(3)),
             new RulesRecordReference(reader.GetString(4), reader.GetString(5)));
         var tags = JsonSerializer.Deserialize<List<string>>(reader.GetString(8), JsonOptions) ?? [];
-        var resources = JsonSerializer.Deserialize<List<NpcResource>>(reader.GetString(12), JsonOptions) ?? [];
+        var resources = JsonSerializer.Deserialize<List<NpcResource>>(reader.GetString(13), JsonOptions) ?? [];
         return CampaignNpc.Rehydrate(
             Guid.Parse(reader.GetString(0)), Guid.Parse(reader.GetString(1)), source,
             reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7), tags,
             reader.IsDBNull(9) ? null : reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10),
-            reader.IsDBNull(11) ? null : reader.GetString(11), resources,
-            DateTimeOffset.Parse(reader.GetString(13)), DateTimeOffset.Parse(reader.GetString(14)));
+            reader.IsDBNull(11) ? null : Guid.Parse(reader.GetString(11)), reader.IsDBNull(12) ? null : reader.GetString(12), resources,
+            DateTimeOffset.Parse(reader.GetString(14)), DateTimeOffset.Parse(reader.GetString(15)));
     }
 }

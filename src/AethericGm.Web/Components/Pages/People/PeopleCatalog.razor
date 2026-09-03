@@ -73,7 +73,7 @@ else
  protected override async Task OnParametersSetAsync()
  {
   campaign = await CampaignRepository.GetAsync(CampaignId);
-  summaries = campaign is null ? [] : (await Directory.ListAsync(CampaignId)).ToList();
+  summaries = campaign is null ? [] : (await Directory.ListAsync(CampaignId)).Where(summary => summary.Reference.Kind != EntityKind.Place).ToList();
  }
 
  private async Task CreateAsync(EntityKind kind)

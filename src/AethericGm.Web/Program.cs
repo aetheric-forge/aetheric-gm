@@ -21,6 +21,8 @@ using AethericGm.Core.People;
 using AethericGm.Infrastructure.People;
 using AethericGm.Core.Relationships;
 using AethericGm.Infrastructure.Relationships;
+using AethericGm.Core.Places;
+using AethericGm.Infrastructure.Places;
 using AethericGm.Web.People;
 using AethericGm.Web.Rules;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
@@ -104,6 +106,9 @@ builder.Services.AddSingleton<ICampaignEntityRepository>(campaignEntityRepositor
 var relationshipRepository = new SqliteRelationshipRepository(databaseConnectionString);
 await relationshipRepository.InitializeAsync();
 builder.Services.AddSingleton<ICampaignRelationshipRepository>(relationshipRepository);
+var placeRepository = new SqliteCampaignPlaceRepository(databaseConnectionString);
+await placeRepository.InitializeAsync();
+builder.Services.AddSingleton<ICampaignPlaceRepository>(placeRepository);
 builder.Services.AddSingleton<CampaignEntityDirectory>();
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
 var rulesCatalog = new FileRulesCatalog(rulesCatalogPath);

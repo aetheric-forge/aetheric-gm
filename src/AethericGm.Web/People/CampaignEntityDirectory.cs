@@ -2,17 +2,18 @@ using AethericGm.Core.Characters;
 using AethericGm.Core.Entities;
 using AethericGm.Core.Npcs;
 using AethericGm.Core.People;
+using AethericGm.Core.Places;
 
 namespace AethericGm.Web.People;
 
 public sealed record CampaignEntitySummary(EntityReference Reference, string Name, IReadOnlyList<string> Tags, string? Role, string? Status);
 
-// Merges Npcs (Core.Npcs), People/Factions (Core.People), and player Characters (Core.Characters) into one
-// cross-kind view for search, filtering, and resolving a relationship's other endpoint. An Npc's Disposition
-// fills the Role slot here for combined filtering only - CampaignNpc itself has no Role field and is not
-// changed. A Character has no Tags/Role/Status concept at all (its fields are ruleset-sheet-defined), so it
-// always reports empty/null for those.
-public sealed class CampaignEntityDirectory(INpcRepository npcs, ICampaignEntityRepository entities, ICharacterRepository characters)
+// Merges Npcs (Core.Npcs), People/Factions (Core.People), player Characters (Core.Characters), and Places
+// (Core.Places) into one cross-kind view for search, filtering, and resolving a relationship's other
+// endpoint. An Npc's Disposition fills the Role slot here for combined filtering only - CampaignNpc itself
+// has no Role field and is not changed. Characters and Places have no Tags/Role/Status concept at all, so
+// they always report empty/null for those.
+public sealed class CampaignEntityDirectory(INpcRepository npcs, ICampaignEntityRepository entities, ICharacterRepository characters, ICampaignPlaceRepository places)
 {
     public async Task<IReadOnlyList<CampaignEntitySummary>> ListAsync(Guid campaignId, CancellationToken cancellationToken = default)
     {
@@ -22,7 +23,10 @@ public sealed class CampaignEntityDirectory(INpcRepository npcs, ICampaignEntity
             .Select(entity => new CampaignEntitySummary(new EntityReference(entity.Kind, entity.Id), entity.Name, entity.Tags, entity.Role, entity.Status));
         var characterSummaries = (await characters.ListAsync(campaignId, cancellationToken))
             .Select(character => new CampaignEntitySummary(new EntityReference(EntityKind.Character, character.Id), character.Name, [], null, null));
-        return npcSummaries.Concat(entitySummaries).Concat(characterSummaries).OrderBy(summary => summary.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        var placeSummaries = (await places.ListAsync(campaignId, cancellationToken))
+            .Select(place => new CampaignEntitySummary(new EntityReference(EntityKind.Place, place.Id), place.Name, [], null, null));
+        return npcSummaries.Concat(entitySummaries).Concat(characterSummaries).Concat(placeSummaries)
+            .OrderBy(summary => summary.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     public async Task<CampaignEntitySummary?> FindAsync(Guid campaignId, EntityReference reference, CancellationToken cancellationToken = default)
@@ -36,6 +40,9 @@ public sealed class CampaignEntityDirectory(INpcRepository npcs, ICampaignEntity
             case EntityKind.Character:
                 var character = await characters.GetAsync(campaignId, reference.Id, cancellationToken);
                 return character is null ? null : new CampaignEntitySummary(reference, character.Name, [], null, null);
+            case EntityKind.Place:
+                var place = await places.GetAsync(campaignId, reference.Id, cancellationToken);
+                return place is null ? null : new CampaignEntitySummary(reference, place.Name, [], null, null);
             default:
                 var entity = await entities.GetAsync(campaignId, reference.Id, cancellationToken);
                 return entity is null || entity.Kind != reference.Kind ? null : new CampaignEntitySummary(reference, entity.Name, entity.Tags, entity.Role, entity.Status);

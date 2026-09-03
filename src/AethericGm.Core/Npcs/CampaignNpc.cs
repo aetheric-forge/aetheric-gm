@@ -35,7 +35,7 @@ public sealed class CampaignNpc
     private readonly List<NpcResource> resources;
 
     private CampaignNpc(Guid id, Guid campaignId, NpcSource? source, string name, string? notes,
-        IReadOnlyList<string> tags, string? disposition, string? location, string? status,
+        IReadOnlyList<string> tags, string? disposition, string? location, Guid? placeId, string? status,
         IReadOnlyList<NpcResource> resources, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
         if (id == Guid.Empty) throw new ArgumentException("NPC ID is required.", nameof(id));
@@ -48,6 +48,7 @@ public sealed class CampaignNpc
         this.tags = NormalizeTags(tags);
         Disposition = Normalize(disposition);
         Location = Normalize(location);
+        PlaceId = placeId;
         Status = Normalize(status);
         this.resources = [.. resources ?? []];
         CreatedAt = createdAt;
@@ -62,20 +63,21 @@ public sealed class CampaignNpc
     public IReadOnlyList<string> Tags => tags;
     public string? Disposition { get; private set; }
     public string? Location { get; private set; }
+    public Guid? PlaceId { get; private set; }
     public string? Status { get; private set; }
     public IReadOnlyList<NpcResource> Resources => resources;
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public static CampaignNpc Create(Guid campaignId, string name, NpcSource? source, DateTimeOffset now) =>
-        new(Guid.NewGuid(), campaignId, source, name, null, [], null, null, null, [], now, now);
+        new(Guid.NewGuid(), campaignId, source, name, null, [], null, null, null, null, [], now, now);
 
     public static CampaignNpc Rehydrate(Guid id, Guid campaignId, NpcSource? source, string name, string? notes,
-        IReadOnlyList<string> tags, string? disposition, string? location, string? status,
+        IReadOnlyList<string> tags, string? disposition, string? location, Guid? placeId, string? status,
         IReadOnlyList<NpcResource> resources, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
-        new(id, campaignId, source, name, notes, tags, disposition, location, status, resources, createdAt, updatedAt);
+        new(id, campaignId, source, name, notes, tags, disposition, location, placeId, status, resources, createdAt, updatedAt);
 
-    public void Update(string name, string? notes, IReadOnlyList<string> tags, string? disposition, string? location, string? status, DateTimeOffset now)
+    public void Update(string name, string? notes, IReadOnlyList<string> tags, string? disposition, string? location, Guid? placeId, string? status, DateTimeOffset now)
     {
         Name = RequireName(name);
         Notes = Normalize(notes);
@@ -83,6 +85,7 @@ public sealed class CampaignNpc
         this.tags.AddRange(NormalizeTags(tags));
         Disposition = Normalize(disposition);
         Location = Normalize(location);
+        PlaceId = placeId;
         Status = Normalize(status);
         UpdatedAt = now;
     }

@@ -1,6 +1,7 @@
 @page "/campaigns/{CampaignId:guid}/npcs/{NpcId:guid}"
 @inject ICampaignRepository CampaignRepository
 @inject INpcRepository NpcRepository
+@inject ICampaignPlaceRepository PlaceRepository
 @inject RulesetWorkspaceResolver Rulesets
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DiceTrayState Tray
@@ -25,7 +26,8 @@ else
    <section class="panel">
     <h2>Details</h2>
     <div class="field-row"><label>Name <input @bind="draft.Name" /></label><label>Disposition <input @bind="draft.Disposition" placeholder="Friendly, wary, hostile…" /></label></div>
-    <div class="field-row"><label>Location <input @bind="draft.Location" /></label><label>Status <input @bind="draft.Status" placeholder="Alive, captured, fled…" /></label></div>
+    <div class="field-row"><label>Location note <input @bind="draft.Location" placeholder="Free text, or link a Place below" /></label><label>Status <input @bind="draft.Status" placeholder="Alive, captured, fled…" /></label></div>
+    <label>Place <select @bind="draft.PlaceId"><option value="">No linked place</option>@foreach (var place in places) { <option value="@place.Id">@PlaceHierarchy.ContainmentPath(places, place)</option> }</select></label>
     <label>Tags <input @bind="draft.Tags" placeholder="comma, separated, tags" /></label>
     <label>Notes <textarea @bind="draft.Notes" rows="5"></textarea></label>
     <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Saving…" : "Save NPC")</button></div>
@@ -89,7 +91,7 @@ else
  [Parameter] public Guid CampaignId { get; set; }
  [Parameter] public Guid NpcId { get; set; }
  private Campaign? campaign; private CampaignNpc? npc; private RulesetWorkspace? workspace; private RulesRecord? sourceRecord; private string? sourceMessage;
- private string? message; private bool hasError, saving; private Draft draft = new(); private DiceRollResult? modalResult;
+ private List<Place> places = []; private string? message; private bool hasError, saving; private Draft draft = new(); private DiceRollResult? modalResult;
  private string newResourceLabel = ""; private int newResourceMax;
 
  private DiceRollContext NotesContext => new("npc", npc!.Id.ToString(), $"{npc.Name} · Notes");
@@ -101,6 +103,7 @@ else
   npc = await NpcRepository.GetAsync(CampaignId, NpcId);
   workspace = null; sourceRecord = null; sourceMessage = null; message = null; hasError = false;
   if (campaign is null || npc is null) return;
+  places = (await PlaceRepository.ListAsync(CampaignId)).ToList();
   draft = Draft.From(npc);
   if (npc.Source is null) return;
   try
@@ -122,7 +125,8 @@ else
   try
   {
    var tags = draft.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-   npc.Update(draft.Name, draft.Notes, tags, draft.Disposition, draft.Location, draft.Status, DateTimeOffset.UtcNow);
+   var placeId = Guid.TryParse(draft.PlaceId, out var parsedPlaceId) ? parsedPlaceId : (Guid?)null;
+   npc.Update(draft.Name, draft.Notes, tags, draft.Disposition, draft.Location, placeId, draft.Status, DateTimeOffset.UtcNow);
    await NpcRepository.SaveAsync(npc);
    draft = Draft.From(npc);
    message = "NPC saved.";
@@ -188,7 +192,7 @@ else
  private sealed class Draft
  {
   public string Name { get; set; } = ""; public string? Notes { get; set; } public string Tags { get; set; } = "";
-  public string? Disposition { get; set; } public string? Location { get; set; } public string? Status { get; set; }
-  public static Draft From(CampaignNpc npc) => new() { Name = npc.Name, Notes = npc.Notes, Tags = string.Join(", ", npc.Tags), Disposition = npc.Disposition, Location = npc.Location, Status = npc.Status };
+  public string? Disposition { get; set; } public string? Location { get; set; } public string PlaceId { get; set; } = ""; public string? Status { get; set; }
+  public static Draft From(CampaignNpc npc) => new() { Name = npc.Name, Notes = npc.Notes, Tags = string.Join(", ", npc.Tags), Disposition = npc.Disposition, Location = npc.Location, PlaceId = npc.PlaceId?.ToString() ?? "", Status = npc.Status };
  }
 }
