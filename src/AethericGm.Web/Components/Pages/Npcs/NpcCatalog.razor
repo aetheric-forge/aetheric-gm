@@ -1,0 +1,172 @@
+@page "/campaigns/{CampaignId:guid}/npcs"
+@inject ICampaignRepository CampaignRepository
+@inject INpcRepository NpcRepository
+@inject RulesetWorkspaceResolver Rulesets
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using AethericGm.Web.Rules
+
+<PageTitle>NPC catalog · Aetheric GM</PageTitle>
+
+@if (campaign is null)
+{
+ <header class="page-header"><div><p class="eyebrow">NPC catalog</p><h1>Campaign unavailable</h1><p>The requested campaign could not be found.</p></div></header>
+}
+else
+{
+ <header class="page-header"><div><p class="eyebrow">@campaign.Name · NPC catalog</p><h1>NPCs</h1><p>Campaign-owned NPCs alongside NPC records @RulesetDescription.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+
+ <section class="npc-toolbar panel field-row">
+  <label>Search <input @bind="search" @bind:event="oninput" placeholder="Name" /></label>
+  <label>Tag <select @bind="tagFilter"><option value="">Any</option>@foreach (var tag in AllTags) { <option value="@tag">@tag</option> }</select></label>
+  <label>Disposition <select @bind="dispositionFilter"><option value="">Any</option>@foreach (var value in Distinct(npcs.Select(npc => npc.Disposition))) { <option value="@value">@value</option> }</select></label>
+  <label>Location <select @bind="locationFilter"><option value="">Any</option>@foreach (var value in Distinct(npcs.Select(npc => npc.Location))) { <option value="@value">@value</option> }</select></label>
+  <label>Status <select @bind="statusFilter"><option value="">Any</option>@foreach (var value in Distinct(npcs.Select(npc => npc.Status))) { <option value="@value">@value</option> }</select></label>
+ </section>
+
+ <section class="panel">
+  <div class="record-heading"><div><h2>New campaign NPC</h2></div></div>
+  @if (!string.IsNullOrWhiteSpace(createError))
+  {
+   <p class="error">@createError</p>
+  }
+  <div class="field-row"><label>Name <input @bind="newName" placeholder="A name for this campaign-owned NPC" /></label><div class="actions"><button class="primary" @onclick="CreateBlankAsync">Create NPC</button></div></div>
+ </section>
+
+ <section class="panel campaign-npcs">
+  <div class="record-heading"><div><p class="eyebrow">Campaign-owned</p><h2>Campaign NPCs</h2></div></div>
+  @if (FilteredNpcs.Count == 0)
+  {
+   <p class="catalog-empty">No NPCs match. Create one above or add one from the ruleset below.</p>
+  }
+  else
+  {
+   <div class="character-list npc-list">
+    @foreach (var npc in FilteredNpcs)
+    {
+     <a href="/campaigns/@CampaignId/npcs/@npc.Id">
+      <strong>@npc.Name</strong>
+      @if (npc.Source is not null)
+      {
+       <span class="badge">From ruleset</span>
+      }
+      <small>@Summary(npc)</small>
+     </a>
+    }
+   </div>
+  }
+ </section>
+
+ @if (workspace is not null)
+ {
+  <section class="panel">
+   <div class="record-heading"><div><p class="eyebrow">@workspace.Descriptor.Name @workspace.Descriptor.Reference.Version</p><h2>NPCs from the ruleset</h2></div></div>
+   @if (packageNpcs.Count == 0)
+   {
+    <p class="catalog-empty">This ruleset does not publish any NPC records.</p>
+   }
+   else
+   {
+    @foreach (var record in packageNpcs)
+    {
+     <article class="panel npc-package-entry">
+      <div class="record-heading">
+       <h3>@Label(record)</h3>
+       <div class="actions">
+        <button class="quiet" @onclick="() => Toggle(record)">@(IsExpanded(record) ? "Hide details" : "Details")</button>
+        <button class="primary" disabled="@adding" @onclick="() => AddToCampaignAsync(record)">Add to campaign</button>
+       </div>
+      </div>
+      @if (IsExpanded(record))
+      {
+       <dl class="record-fields">
+        @foreach (var detail in TextDetails(record))
+        {
+         <dd><InlineRulesText Text="@detail" /></dd>
+        }
+       </dl>
+      }
+     </article>
+    }
+   }
+  </section>
+ }
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ private Campaign? campaign; private List<CampaignNpc> npcs = []; private RulesetWorkspace? workspace; private IReadOnlyList<RulesRecord> packageNpcs = [];
+ private string search = ""; private string tagFilter = ""; private string dispositionFilter = ""; private string locationFilter = ""; private string statusFilter = "";
+ private string newName = ""; private string? createError; private string? expandedKey; private bool adding;
+
+ private string RulesetDescription => workspace is null ? "from the pinned ruleset" : $"from {workspace.Descriptor.Name} {workspace.Descriptor.Reference.Version}";
+ private IEnumerable<string> AllTags => Distinct(npcs.SelectMany(npc => npc.Tags));
+
+ private List<CampaignNpc> FilteredNpcs => npcs.Where(npc =>
+  (string.IsNullOrWhiteSpace(search) || npc.Name.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(tagFilter) || npc.Tags.Contains(tagFilter, StringComparer.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(dispositionFilter) || string.Equals(npc.Disposition, dispositionFilter, StringComparison.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(locationFilter) || string.Equals(npc.Location, locationFilter, StringComparison.OrdinalIgnoreCase)) &&
+  (string.IsNullOrEmpty(statusFilter) || string.Equals(npc.Status, statusFilter, StringComparison.OrdinalIgnoreCase))).ToList();
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  workspace = null; packageNpcs = [];
+  if (campaign is null) { npcs = []; return; }
+  npcs = (await NpcRepository.ListAsync(CampaignId)).ToList();
+  if (campaign.Ruleset is null) return;
+  var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+  var owner = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+  workspace = await Rulesets.ResolveAsync(campaign.Ruleset, owner);
+  if (workspace is not null) packageNpcs = NpcCatalogLookup.CompatibleRecords(workspace.Descriptor);
+ }
+
+ private async Task CreateBlankAsync()
+ {
+  createError = null;
+  try
+  {
+   var npc = CampaignNpc.Create(CampaignId, newName, null, DateTimeOffset.UtcNow);
+   await NpcRepository.SaveAsync(npc);
+   Navigation.NavigateTo($"/campaigns/{CampaignId}/npcs/{npc.Id}");
+  }
+  catch (ArgumentException exception) { createError = exception.Message; }
+ }
+
+ private async Task AddToCampaignAsync(RulesRecord record)
+ {
+  if (workspace is null) return;
+  adding = true;
+  try
+  {
+   var source = new NpcSource(workspace.Descriptor.Reference, new RulesRecordReference(record.RecordType, record.Key));
+   var npc = CampaignNpc.Create(CampaignId, Label(record), source, DateTimeOffset.UtcNow);
+   await NpcRepository.SaveAsync(npc);
+   Navigation.NavigateTo($"/campaigns/{CampaignId}/npcs/{npc.Id}");
+  }
+  finally { adding = false; }
+ }
+
+ private bool IsExpanded(RulesRecord record) => expandedKey == RecordKey(record);
+ private void Toggle(RulesRecord record) => expandedKey = IsExpanded(record) ? null : RecordKey(record);
+ private static string RecordKey(RulesRecord record) => $"{record.RecordType}/{record.Key}";
+
+ private string Label(RulesRecord record)
+ {
+  var display = workspace?.Descriptor.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return display is not null && record.Values.TryGetValue(display, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString()! : record.Key;
+ }
+
+ private IEnumerable<string> TextDetails(RulesRecord record)
+ {
+  var display = workspace?.Descriptor.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return record.Values.Where(pair => pair.Key != display && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+   .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
+ }
+
+ private static IEnumerable<string> Distinct(IEnumerable<string?> values) =>
+  values.Where(value => !string.IsNullOrWhiteSpace(value)).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value, StringComparer.OrdinalIgnoreCase);
+
+ private static string Summary(CampaignNpc npc) => string.Join(" · ", new[] { npc.Disposition, npc.Location, npc.Status }.Where(value => !string.IsNullOrWhiteSpace(value)));
+}

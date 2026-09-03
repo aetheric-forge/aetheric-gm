@@ -1,0 +1,191 @@
+@page "/campaigns/{CampaignId:guid}/npcs/{NpcId:guid}"
+@inject ICampaignRepository CampaignRepository
+@inject INpcRepository NpcRepository
+@inject RulesetWorkspaceResolver Rulesets
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DiceTrayState Tray
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@using AethericGm.Web.Rules
+@using AethericGm.Web.Dice
+
+<PageTitle>@(npc?.Name ?? "NPC") · Aetheric GM</PageTitle>
+
+@if (campaign is null || npc is null)
+{
+ <header class="page-header"><div><p class="eyebrow">NPC</p><h1>NPC unavailable</h1><p>The requested NPC could not be found in this campaign.</p></div><a class="quiet action-link" href="/campaigns/@CampaignId/npcs">Back to catalog</a></header>
+}
+else
+{
+ <header class="page-header character-header"><div><p class="eyebrow">@campaign.Name · NPC</p><h1>@npc.Name</h1>@if (npc.Source is not null) { <p>Sourced from @npc.Source.Ruleset @npc.Source.Record.RecordType/@npc.Source.Record.Key.</p> }</div><div class="actions"><a class="quiet action-link" href="/campaigns/@CampaignId/npcs">Back to catalog</a><button class="danger" @onclick="RemoveAsync">Remove NPC</button></div></header>
+ @if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")" role="status">@message</p> }
+
+ <div class="character-sheet-grid">
+  <div class="character-fields">
+   <section class="panel">
+    <h2>Details</h2>
+    <div class="field-row"><label>Name <input @bind="draft.Name" /></label><label>Disposition <input @bind="draft.Disposition" placeholder="Friendly, wary, hostile…" /></label></div>
+    <div class="field-row"><label>Location <input @bind="draft.Location" /></label><label>Status <input @bind="draft.Status" placeholder="Alive, captured, fled…" /></label></div>
+    <label>Tags <input @bind="draft.Tags" placeholder="comma, separated, tags" /></label>
+    <label>Notes <textarea @bind="draft.Notes" rows="5"></textarea></label>
+    <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Saving…" : "Save NPC")</button></div>
+   </section>
+
+   @if (!string.IsNullOrWhiteSpace(npc.Notes))
+   {
+    <section class="panel"><h2>Notes</h2><p class="rules-copy"><InlineRulesText Text="@npc.Notes" Context="@NotesContext" OnRoll="RollInline" /></p></section>
+   }
+
+   <section class="panel npc-resources">
+    <div class="record-heading"><h2>Resources</h2></div>
+    @if (npc.Resources.Count == 0) { <p class="catalog-empty">No resource trackers yet.</p> }
+    else
+    {
+     <div class="resource-list">
+      @for (var i = 0; i < npc.Resources.Count; i++)
+      {
+       var index = i; var resource = npc.Resources[index];
+       <div class="resource-row"><strong>@resource.Label</strong><span>@resource.Current / @resource.Max</span><div class="actions"><button class="quiet" @onclick="() => AdjustResourceAsync(index, -1)">-1</button><button class="quiet" @onclick="() => AdjustResourceAsync(index, 1)">+1</button><button class="danger" @onclick="() => RemoveResourceAsync(index)">Remove</button></div></div>
+      }
+     </div>
+    }
+    <div class="field-row"><label>New resource <input @bind="newResourceLabel" placeholder="HP" /></label><label>Maximum <input type="number" min="0" @bind="newResourceMax" /></label><div class="actions"><button class="quiet" @onclick="AddResourceAsync">Add resource</button></div></div>
+   </section>
+  </div>
+
+  @if (npc.Source is not null)
+  {
+   <section class="panel ancestry-detail">
+    <p class="eyebrow">Source record</p>
+    @if (sourceRecord is not null)
+    {
+     <h2>@Label(sourceRecord)</h2>
+     @foreach (var detail in TextDetails(sourceRecord)) { <p class="rules-copy"><InlineRulesText Text="@detail" Context="@SourceContext" OnRoll="RollInline" /></p> }
+    }
+    else
+    {
+     <p class="catalog-empty">@(sourceMessage ?? "The source rules record is unavailable. This NPC's own data remains readable.")</p>
+    }
+   </section>
+  }
+ </div>
+}
+
+@if (modalResult is not null)
+{
+ <div class="dice-modal-backdrop" role="presentation" tabindex="0" @onclick="CloseDiceModal" @onkeydown="HandleModalKeyDown">
+  <section class="dice-modal panel" role="dialog" aria-modal="true" aria-labelledby="npc-roll-result-heading" @onclick:stopPropagation="true">
+   <button class="dice-modal-close" type="button" aria-label="Close dice result" autofocus @onclick="CloseDiceModal">×</button>
+   <DiceRollResultPanel Result="modalResult" HeadingId="npc-roll-result-heading" />
+   <div class="dice-modal-actions"><button class="quiet" type="button" @onclick="RepeatInlineRoll">Roll again</button><a class="primary action-link" href="/dice">Open dice tray</a></div>
+  </section>
+ </div>
+}
+
+@code {
+ [Parameter] public Guid CampaignId { get; set; }
+ [Parameter] public Guid NpcId { get; set; }
+ private Campaign? campaign; private CampaignNpc? npc; private RulesetWorkspace? workspace; private RulesRecord? sourceRecord; private string? sourceMessage;
+ private string? message; private bool hasError, saving; private Draft draft = new(); private DiceRollResult? modalResult;
+ private string newResourceLabel = ""; private int newResourceMax;
+
+ private DiceRollContext NotesContext => new("npc", npc!.Id.ToString(), $"{npc.Name} · Notes");
+ private DiceRollContext SourceContext => new("npc", npc!.Id.ToString(), $"{npc.Name} · {Label(sourceRecord!)}");
+
+ protected override async Task OnParametersSetAsync()
+ {
+  campaign = await CampaignRepository.GetAsync(CampaignId);
+  npc = await NpcRepository.GetAsync(CampaignId, NpcId);
+  workspace = null; sourceRecord = null; sourceMessage = null; message = null; hasError = false;
+  if (campaign is null || npc is null) return;
+  draft = Draft.From(npc);
+  if (npc.Source is null) return;
+  try
+  {
+   var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+   var owner = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+   workspace = await Rulesets.ResolveAsync(npc.Source.Ruleset, owner);
+   if (workspace is null) { sourceMessage = $"The source ruleset {npc.Source.Ruleset} is unavailable."; return; }
+   sourceRecord = workspace.Descriptor.Records.FirstOrDefault(record => record.RecordType == npc.Source.Record.RecordType && record.Key == npc.Source.Record.Key);
+   if (sourceRecord is null) sourceMessage = $"The source record '{npc.Source.Record.RecordType}/{npc.Source.Record.Key}' is no longer published by {workspace.Descriptor.Name}.";
+  }
+  catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException) { sourceMessage = exception.Message; }
+ }
+
+ private async Task SaveAsync()
+ {
+  if (npc is null) return;
+  saving = true; message = null; hasError = false;
+  try
+  {
+   var tags = draft.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+   npc.Update(draft.Name, draft.Notes, tags, draft.Disposition, draft.Location, draft.Status, DateTimeOffset.UtcNow);
+   await NpcRepository.SaveAsync(npc);
+   draft = Draft.From(npc);
+   message = "NPC saved.";
+  }
+  catch (ArgumentException exception) { message = exception.Message; hasError = true; }
+  finally { saving = false; }
+ }
+
+ private async Task RemoveAsync()
+ {
+  if (npc is null) return;
+  if (!await JS.InvokeAsync<bool>("confirm", $"Remove {npc.Name} from this campaign?")) return;
+  await NpcRepository.DeleteAsync(CampaignId, NpcId);
+  Navigation.NavigateTo($"/campaigns/{CampaignId}/npcs");
+ }
+
+ private async Task AdjustResourceAsync(int index, int delta)
+ {
+  if (npc is null) return;
+  var current = npc.Resources[index];
+  var updated = npc.Resources.ToList();
+  updated[index] = new NpcResource(current.Label, Math.Max(0, current.Current + delta), current.Max);
+  npc.UpdateResources(updated, DateTimeOffset.UtcNow);
+  await NpcRepository.SaveAsync(npc);
+ }
+
+ private async Task AddResourceAsync()
+ {
+  if (npc is null || string.IsNullOrWhiteSpace(newResourceLabel)) return;
+  var updated = npc.Resources.ToList();
+  updated.Add(new NpcResource(newResourceLabel, newResourceMax, newResourceMax));
+  npc.UpdateResources(updated, DateTimeOffset.UtcNow);
+  await NpcRepository.SaveAsync(npc);
+  newResourceLabel = ""; newResourceMax = 0;
+ }
+
+ private async Task RemoveResourceAsync(int index)
+ {
+  if (npc is null) return;
+  var updated = npc.Resources.ToList(); updated.RemoveAt(index);
+  npc.UpdateResources(updated, DateTimeOffset.UtcNow);
+  await NpcRepository.SaveAsync(npc);
+ }
+
+ private string Label(RulesRecord record)
+ {
+  var display = workspace?.Descriptor.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return display is not null && record.Values.TryGetValue(display, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString()! : record.Key;
+ }
+
+ private IEnumerable<string> TextDetails(RulesRecord record)
+ {
+  var display = workspace?.Descriptor.RecordTypes.Find(record.RecordType)?.DisplayField;
+  return record.Values.Where(pair => pair.Key != display && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+   .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
+ }
+
+ private void RollInline(DiceRollRequest request) => modalResult = Tray.Roll(request);
+ private void RepeatInlineRoll() { if (modalResult is not null) modalResult = Tray.Roll(modalResult.Request); }
+ private void CloseDiceModal() => modalResult = null;
+ private void HandleModalKeyDown(KeyboardEventArgs eventArgs) { if (eventArgs.Key == "Escape") CloseDiceModal(); }
+
+ private sealed class Draft
+ {
+  public string Name { get; set; } = ""; public string? Notes { get; set; } public string Tags { get; set; } = "";
+  public string? Disposition { get; set; } public string? Location { get; set; } public string? Status { get; set; }
+  public static Draft From(CampaignNpc npc) => new() { Name = npc.Name, Notes = npc.Notes, Tags = string.Join(", ", npc.Tags), Disposition = npc.Disposition, Location = npc.Location, Status = npc.Status };
+ }
+}
