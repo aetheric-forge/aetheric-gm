@@ -37,11 +37,13 @@ The v0.2 live-play stories, in delivery order, are:
 
 Together these form the [v0.2 live-play foundations milestone](../product/v0.2.md), with a release break after Story 17. Inline rules rolls retain their original story number but are delivered alongside the dice tray before character-sheet work.
 
-The next release begins with:
+The v0.3 campaign-world stories, in delivery order, are:
 
 18. [Manage an NPC catalog](18-manage-npc-catalog.md)
+20. [Manage people and factions](20-manage-people-and-factions.md)
+21. [Organize campaign places](21-organize-campaign-places.md)
 
-Story 18 begins the [v0.3 campaign-world milestone](../product/v0.3.md). Further v0.3 scope will be chosen after v0.2 is released rather than assumed in advance.
+Together these form the [v0.3 campaign-world milestone](../product/v0.3.md). Story 20 and 21 continue the numbering sequence after Story 19, which was delivered earlier alongside the v0.2 dice tray.
 
 An original demonstration package provides the distributable proving examples: attributes contain structured values and temporary modifiers, while heritages are published rules records that can carry flavour text and grant abilities. A separately obtained Shadowdark package may use the same engine, but Shadowdark content is not part of the application repository or release artifacts without an appropriate redistribution license.
 

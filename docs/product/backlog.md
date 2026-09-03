@@ -47,4 +47,4 @@ Authentication/authorization UI, generative AI, bundled third-party rules compen
 
 ## Current slice
 
-Version 0.1 established private rules package loading and a rules-enabled campaign workspace. The current target is the [v0.2 live-play foundations milestone](v0.2.md): animated 2D dice, inline rolls from rules prose, character creation, and a proper character sheet. Version 0.2 ends with Story 17; the NPC catalog begins the [v0.3 campaign-world milestone](v0.3.md).
+Version 0.1 established private rules package loading and a rules-enabled campaign workspace. Version 0.2 delivered live-play foundations: animated 2D dice, inline rolls from rules prose, character creation, and a proper character sheet, ending with Story 17. The current target is the [v0.3 campaign-world milestone](v0.3.md): an NPC catalog, people and factions, and places, ending with Story 21.
