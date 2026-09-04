@@ -50,7 +50,7 @@ public sealed class FileRulesCatalog : IRulesCatalog
         if (!File.Exists(path)) return new RecordTypeRegistry([]);
         var document = JsonSerializer.Deserialize<RecordTypesDocument>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException($"Record types '{path}' are empty.");
         return new RecordTypeRegistry(document.RecordTypes.Select(type => new RecordTypeDefinition(type.Key, type.Label,
-            type.Fields.Select(field => new RecordFieldDefinition(field.Key, field.Label, field.ValueKind, field.Cardinality, field.RecordType, field.Description)),
+            type.Fields.Select(field => new RecordFieldDefinition(field.Key, field.Label, field.ValueKind, field.Cardinality, field.RecordType, field.Description, field.TextFormat)),
             type.Extends, type.DisplayField, type.Description)));
     }
 
@@ -159,7 +159,7 @@ public sealed class FileRulesCatalog : IRulesCatalog
     private sealed record Manifest(string Id, string Version, string Name, string? Description);
     private sealed record RecordTypesDocument(IReadOnlyList<RecordTypeDocument> RecordTypes);
     private sealed record RecordTypeDocument(string Key, string Label, string? Extends, string? DisplayField, string? Description, IReadOnlyList<RecordFieldDocument> Fields);
-    private sealed record RecordFieldDocument(string Key, string Label, RecordValueKind ValueKind, RecordCardinality Cardinality, string? RecordType, string? Description);
+    private sealed record RecordFieldDocument(string Key, string Label, RecordValueKind ValueKind, RecordCardinality Cardinality, string? RecordType, string? Description, RecordTextFormat TextFormat = RecordTextFormat.PlainText);
     private sealed record RecordsDocument(IReadOnlyList<RulesRecordDocument> Records);
     private sealed record RulesRecordDocument(string Key, string RecordType, IReadOnlyDictionary<string, JsonElement> Values);
     private sealed record CatalogDocument(IReadOnlyList<CatalogSectionDocument> Sections);

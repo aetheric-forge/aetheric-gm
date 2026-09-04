@@ -1,4 +1,5 @@
 using AethericGm.Core.Rules;
+using AethericGm.Core.Rules.Records;
 using AethericGm.Infrastructure.Rules;
 
 namespace AethericGm.Tests;
@@ -42,13 +43,13 @@ public sealed class FileRulesCatalogTests : IDisposable
         File.WriteAllText(Path.Combine(package.FullName, "record-types.json"), """
         {"recordTypes":[
           {"key":"named","label":"Named","displayField":"name","fields":[{"key":"name","label":"Name","valueKind":"text","cardinality":"one"}]},
-          {"key":"ability","label":"Ability","extends":"named","displayField":"name","fields":[]},
+          {"key":"ability","label":"Ability","extends":"named","displayField":"name","fields":[{"key":"description","label":"Description","valueKind":"text","cardinality":"optional","textFormat":"markdown"}]},
           {"key":"heritage","label":"Heritage","extends":"named","displayField":"name","fields":[{"key":"abilities","label":"Abilities","valueKind":"rules-reference","recordType":"ability","cardinality":"many"}]}
         ]}
         """);
         File.WriteAllText(Path.Combine(package.FullName, "records.json"), """
         {"records":[
-          {"key":"senses","recordType":"ability","values":{"name":"Keen Senses"}},
+          {"key":"senses","recordType":"ability","values":{"name":"Keen Senses","description":"**Very** sharp senses."}},
           {"key":"wanderer","recordType":"heritage","values":{"name":"Wanderer","abilities":[{"recordType":"ability","key":"senses"}]}}
         ]}
         """);
@@ -56,6 +57,7 @@ public sealed class FileRulesCatalogTests : IDisposable
         var descriptor = Assert.Single(new FileRulesCatalog(root).List());
         Assert.True(descriptor.RecordTypes.Accepts("named", "heritage"));
         Assert.Equal(2, descriptor.RecordTypes.FieldsFor("heritage").Count);
+        Assert.Equal(RecordTextFormat.Markdown, descriptor.RecordTypes.FieldsFor("ability").Single(field => field.Key == "description").TextFormat);
         Assert.Equal("wanderer", Assert.Single(descriptor.RecordsOfType("heritage")).Key);
     }
 

@@ -1,8 +1,6 @@
 @using System.Text.Json
 @using AethericGm.Core.Rules.Catalog
 @using AethericGm.Infrastructure.Rules
-@using AethericGm.Web.Dice
-@inject DiceTrayState Tray
 
 @if (string.IsNullOrWhiteSpace(PackagePath))
 {
@@ -59,20 +57,19 @@ else
        <label>Stable key <input @bind="selectedRecord.Key" /></label>
        @foreach (var field in currentDescriptor.RecordTypes.FieldsFor(selectedRecord.RecordType))
        {
-        <div class="record-value">
+        <div class="record-value @(IsCompactTextField(field, recordType) ? "compact-text-field" : null)">
          <label>@field.Label@if (field.Cardinality is RecordCardinality.Optional or RecordCardinality.Many) { <small>Optional</small> }</label>
          @if (field.ValueKind == RecordValueKind.Text && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
          {
           var fieldValue = selectedRecord.Get(field.Key);
-          <textarea rows="@(IsRulesProse(field) ? 5 : 2)" value="@fieldValue" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)"></textarea>
-          @if (IsRulesProse(field))
+          @if (UsesMarkdownEditor(field))
           {
-           <small>Embed a roll with <code>[roll:1d20+3|Strength check]</code>.</small>
-           @if (fieldValue.Contains("[roll:", StringComparison.OrdinalIgnoreCase))
-           {
-            <div class="rules-prose-preview"><small>Roll-link preview</small><p><InlineRulesText Text="@fieldValue" Context="@RulesContext(selectedRecord)" OnRoll="RollInline" /></p></div>
-           }
+           <MarkdownEditor Value="@fieldValue" ValueChanged="value => selectedRecord.Set(field.Key, value)" AriaLabel="@($"{field.Label} Markdown source")" />
+           <small>Markdown supported. Embed a roll with <code>[roll:1d20+3|Strength check]</code>.</small>
           }
+          else if (IsCompactTextField(field, recordType))
+          { <input type="text" value="@fieldValue" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)" /> }
+          else { <textarea rows="2" value="@fieldValue" @onchange="eventArgs => selectedRecord.Set(field.Key, eventArgs.Value?.ToString() ?? string.Empty)"></textarea> }
          }
          else if (field.ValueKind == RecordValueKind.Integer && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
          {
@@ -108,17 +105,6 @@ else
 </div>
 }
 
-@if (modalResult is not null)
-{
- <div class="dice-modal-backdrop" role="presentation" tabindex="0" @onclick="CloseDiceModal" @onkeydown="HandleModalKeyDown">
-  <section class="dice-modal panel" role="dialog" aria-modal="true" aria-labelledby="inline-roll-result-heading" @onclick:stopPropagation="true">
-   <button class="dice-modal-close" type="button" aria-label="Close dice result" autofocus @onclick="CloseDiceModal">×</button>
-   <DiceRollResultPanel Result="modalResult" HeadingId="inline-roll-result-heading" />
-   <div class="dice-modal-actions"><button class="quiet" type="button" @onclick="RepeatInlineRoll">Roll again</button><a class="primary action-link" href="/dice">Open dice tray</a></div>
-  </section>
- </div>
-}
-
 @if (!string.IsNullOrWhiteSpace(message)) { <p class="save-message @(hasError ? "error" : "")">@message</p> }
 
 @code {
@@ -130,7 +116,6 @@ else
  private EditableRulesRecord? selectedRecord;
  private string? message;
  private bool hasError;
- private DiceRollResult? modalResult;
 
  protected override void OnParametersSet()
  {
@@ -186,24 +171,14 @@ else
  private void Fail(Exception exception) { message = exception.Message; hasError = true; }
  private IEnumerable<RulesRecord> ReferenceChoices(string expectedType) => currentDescriptor.Records.Where(record => currentDescriptor.RecordTypes.Accepts(expectedType, record.RecordType));
  private string RecordLabel(RulesRecord record) { var type = currentDescriptor.RecordTypes.Find(record.RecordType); return type?.DisplayField is { } field && record.Values.TryGetValue(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : record.Key; }
- private static bool IsRulesProse(RecordFieldDefinition field) => field.Key.Contains("description", StringComparison.OrdinalIgnoreCase) || field.Key.Contains("text", StringComparison.OrdinalIgnoreCase) || field.Key.Contains("rules", StringComparison.OrdinalIgnoreCase) || field.Key.Contains("effect", StringComparison.OrdinalIgnoreCase);
+ private static bool UsesMarkdownEditor(RecordFieldDefinition field) => field.TextFormat == RecordTextFormat.Markdown || field.Key == "flavour-text";
+ private static bool IsCompactTextField(RecordFieldDefinition field, RecordTypeDefinition type) => field.ValueKind == RecordValueKind.Text && field.Key == type.DisplayField;
  private static void ValidateRollTokens(EditableRulesRecord record, IReadOnlyList<RecordFieldDefinition> fields)
  {
   foreach (var field in fields.Where(field => field.ValueKind == RecordValueKind.Text && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional))
    foreach (var diagnostic in InlineRulesTextParser.Diagnostics(record.Get(field.Key)))
     throw new ArgumentException($"{field.Label}, {diagnostic}");
  }
- private DiceRollContext RulesContext(EditableRulesRecord record)
- {
-  var type = currentDescriptor.RecordTypes.Find(record.RecordType);
-  var label = type?.DisplayField is { } displayField && !string.IsNullOrWhiteSpace(record.Get(displayField)) ? record.Get(displayField) : record.Key;
-  return new DiceRollContext("rules-record", $"{currentDescriptor.Reference}/{record.RecordType}/{record.Key}", label);
- }
- private void RollInline(DiceRollRequest request) => modalResult = Tray.Roll(request);
- private void RepeatInlineRoll() { if (modalResult is not null) modalResult = Tray.Roll(modalResult.Request); }
- private void CloseDiceModal() => modalResult = null;
- private void HandleModalKeyDown(KeyboardEventArgs eventArgs) { if (eventArgs.Key == "Escape") CloseDiceModal(); }
-
  private sealed class EditableCatalogSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableCatalogItem> Items { get; } = []; public RulesCatalogSection Build() => new(Key, Label, Items.Select(item => item.Build())); public static EditableCatalogSection From(RulesCatalogSection value) { var result = new EditableCatalogSection { Key = value.Key, Label = value.Label }; result.Items.AddRange(value.Items.Select(EditableCatalogItem.From)); return result; } }
  private sealed class EditableCatalogItem { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public RulesCatalogItemKind Kind { get; set; } = RulesCatalogItemKind.RecordCatalog; public string RecordType { get; set; } = ""; public List<EditableCatalogItem> Items { get; } = []; public RulesCatalogItem Build() => new(Key, Label, Kind, Kind == RulesCatalogItemKind.RecordCatalog ? RecordType : null, Items.Select(item => item.Build())); public static EditableCatalogItem From(RulesCatalogItem value) { var result = new EditableCatalogItem { Key = value.Key, Label = value.Label, Kind = value.Kind, RecordType = value.RecordType ?? "" }; result.Items.AddRange(value.Items.Select(From)); return result; } }
 
