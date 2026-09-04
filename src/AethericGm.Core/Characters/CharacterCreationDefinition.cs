@@ -8,6 +8,9 @@ namespace AethericGm.Core.Characters;
 
 public sealed class CharacterCreationDefinition
 {
+    public const int DefaultAttributeMinimum = 3;
+    public const int DefaultAttributeMaximum = 18;
+
     public CharacterCreationDefinition(RulesetDescriptor ruleset, CharacterSheetDefinition sheet)
     {
         Ruleset = ruleset ?? throw new ArgumentNullException(nameof(ruleset));
@@ -33,6 +36,14 @@ public sealed class CharacterCreationDefinition
 
         Ancestries = ruleset.RecordsOfType(catalog.RecordType!).ToArray();
         if (Ancestries.Count == 0) throw new InvalidDataException("The active ruleset does not currently provide ancestry choices.");
+
+        AttributeFields = sheet.Sections.SelectMany(section => section.Fields)
+            .Where(field => field.ValueKind == RecordValueKind.Record && field.RecordType is not null && ruleset.RecordTypes.Find("attribute") is not null &&
+                ruleset.RecordTypes.Accepts("attribute", field.RecordType) && field.Cardinality is RecordCardinality.One or RecordCardinality.Optional)
+            .Where(field => ruleset.RecordTypes.Find(field.RecordType!) is not null && ruleset.RecordTypes.FieldsFor(field.RecordType!).Any(IsAttributeValue))
+            .ToArray();
+        if (AttributeFields.Count is > 0 and not 6)
+            throw new InvalidDataException("Character generation requires exactly six character-sheet fields backed by an attribute record.");
     }
 
     public RulesetDescriptor Ruleset { get; }
@@ -40,8 +51,9 @@ public sealed class CharacterCreationDefinition
     public CharacterSheetField NameField { get; }
     public CharacterSheetField AncestryField { get; }
     public IReadOnlyList<RulesRecord> Ancestries { get; }
+    public IReadOnlyList<CharacterSheetField> AttributeFields { get; }
 
-    public IReadOnlyDictionary<string, JsonElement> CreateValues(string name, RulesRecordReference ancestry)
+    public IReadOnlyDictionary<string, JsonElement> CreateValues(string name, RulesRecordReference ancestry, IReadOnlyDictionary<string, int>? attributeScores = null)
     {
         var normalizedName = string.IsNullOrWhiteSpace(name) ? throw new ArgumentException("Character name is required.", nameof(name)) : name.Trim();
         ArgumentNullException.ThrowIfNull(ancestry);
@@ -49,11 +61,22 @@ public sealed class CharacterCreationDefinition
             Ancestries.All(record => record.RecordType != ancestry.RecordType || record.Key != ancestry.Key))
             throw new ArgumentException($"Ancestry '{ancestry.RecordType}/{ancestry.Key}' is not an available choice.", nameof(ancestry));
 
-        return new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        if (AttributeFields.Count > 0)
+        {
+            if (attributeScores is null || attributeScores.Count != AttributeFields.Count || AttributeFields.Any(field => !attributeScores.ContainsKey(field.Key)))
+                throw new ArgumentException("Assign one rolled score to each attribute.", nameof(attributeScores));
+            if (attributeScores.Values.Any(score => score is < DefaultAttributeMinimum or > DefaultAttributeMaximum))
+                throw new ArgumentOutOfRangeException(nameof(attributeScores), $"Attribute scores must be between {DefaultAttributeMinimum} and {DefaultAttributeMaximum}.");
+        }
+
+        var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         {
             [NameField.Key] = JsonSerializer.SerializeToElement(normalizedName),
             [AncestryField.Key] = JsonSerializer.SerializeToElement(ancestry)
         };
+        foreach (var field in AttributeFields)
+            values[field.Key] = JsonSerializer.SerializeToElement(new { recordType = field.RecordType, values = new { value = attributeScores![field.Key] } });
+        return values;
     }
 
     public string Label(RulesRecord record)
@@ -66,4 +89,7 @@ public sealed class CharacterCreationDefinition
 
     private static IEnumerable<RulesCatalogItem> Flatten(IEnumerable<RulesCatalogItem> items) =>
         items.SelectMany(item => new[] { item }.Concat(Flatten(item.Items)));
+
+    private static bool IsAttributeValue(RecordFieldDefinition field) =>
+        field.Key == "value" && field.ValueKind == RecordValueKind.Integer && field.Cardinality == RecordCardinality.One;
 }

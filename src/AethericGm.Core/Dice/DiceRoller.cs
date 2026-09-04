@@ -22,7 +22,11 @@ public sealed class DiceRoller(IDiceRandomSource random, TimeProvider timeProvid
             DiceRollMode.Disadvantage => Array.IndexOf(values, values.Min()),
             _ => -1
         };
-        var dice = values.Select((value, index) => new DieResult(value, selectedIndex < 0 || index == selectedIndex)).ToArray();
+        var keptIndexes = request.KeepHighest is null
+            ? null
+            : values.Select((value, index) => (value, index)).OrderByDescending(item => item.value).ThenBy(item => item.index)
+                .Take(request.KeepHighest.Value).Select(item => item.index).ToHashSet();
+        var dice = values.Select((value, index) => new DieResult(value, keptIndexes?.Contains(index) ?? (selectedIndex < 0 || index == selectedIndex))).ToArray();
         return new DiceRollResult(Guid.NewGuid(), request, dice, timeProvider.GetUtcNow());
     }
 }

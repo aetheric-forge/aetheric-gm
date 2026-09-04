@@ -10,6 +10,7 @@ public class InlineRulesTextParserTests
     [InlineData("1d8-2", "1d8 - 2")]
     [InlineData("2d20kh1+3", "2d20kh1 + 3")]
     [InlineData("2d20kl1", "2d20kl1")]
+    [InlineData("4d6kh3", "4d6kh3")]
     [InlineData("100d6+999", "100d6 + 999")]
     public void Supported_expressions_are_normalized(string input, string expected)
     {
@@ -35,8 +36,7 @@ public class InlineRulesTextParserTests
     [InlineData("1d7")]
     [InlineData("101d6")]
     [InlineData("2d6+1d4")]
-    [InlineData("2d6kh1")]
-    [InlineData("3d20kh1")]
+    [InlineData("2d6kh2")]
     [InlineData("1d20+1000")]
     [InlineData("1d20+(Ability Wisdom)")]
     [InlineData("1d20+(ability)")]

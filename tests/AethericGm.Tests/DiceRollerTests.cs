@@ -25,6 +25,12 @@ public class DiceRollerTests
     {
         var result = CreateRoller(20).Roll(new DiceRollRequest(1, 20, -10)); Assert.True(result.IsNaturalMaximum); Assert.Equal(10, result.Total);
     }
+    [Fact] public void Keep_highest_roll_retains_the_requested_number_and_preserves_expression()
+    {
+        var result = CreateRoller(2, 6, 6, 3).Roll(new DiceRollRequest(4, 6, label: "Attribute score", keepHighest: 3));
+        Assert.Equal([false, true, true, true], result.Dice.Select(die => die.IsKept));
+        Assert.Equal(15, result.Total); Assert.Equal("4d6kh3", result.Request.Expression);
+    }
     [Fact] public void Request_rejects_unsupported_dice_and_invalid_advantage()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new DiceRollRequest(1, 7));

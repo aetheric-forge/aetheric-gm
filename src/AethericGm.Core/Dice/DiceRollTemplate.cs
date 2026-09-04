@@ -8,14 +8,15 @@ public sealed record DiceRollTemplate(
     string? ModifierPath,
     int ModifierSign,
     string Label,
-    DiceRollContext? Context)
+    DiceRollContext? Context,
+    int? KeepHighest = null)
 {
     public bool RequiresValue => ModifierPath is not null;
     public string Expression
     {
         get
         {
-            var dice = Mode switch { DiceRollMode.Advantage => "2d20kh1", DiceRollMode.Disadvantage => "2d20kl1", _ => $"{Count}d{Sides}" };
+            var dice = Mode switch { DiceRollMode.Advantage => "2d20kh1", DiceRollMode.Disadvantage => "2d20kl1", _ => $"{Count}d{Sides}{(KeepHighest is null ? "" : $"kh{KeepHighest}")}" };
             if (ModifierPath is not null) return $"{dice} {(ModifierSign < 0 ? "-" : "+")} ({ModifierPath})";
             return FixedModifier switch { > 0 => $"{dice} + {FixedModifier}", < 0 => $"{dice} - {Math.Abs(FixedModifier.Value)}", _ => dice };
         }
@@ -31,7 +32,7 @@ public sealed record DiceRollTemplate(
             if (value is null) return false;
             modifier = checked(ModifierSign * value.Value);
         }
-        request = new DiceRollRequest(Mode == DiceRollMode.Normal ? Count : 1, Sides, modifier, Mode, Label, Context);
+        request = new DiceRollRequest(Mode == DiceRollMode.Normal ? Count : 1, Sides, modifier, Mode, Label, Context, KeepHighest);
         return true;
     }
 }

@@ -4,6 +4,7 @@
 @inject RulesetWorkspaceResolver Rulesets
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject IDiceRoller DiceRoller
 @using AethericGm.Web.Rules
 
 <PageTitle>Create character · Aetheric GM</PageTitle>
@@ -31,7 +32,31 @@ else
      </label>
     }
    </fieldset>
-   <div class="actions"><button class="primary" disabled="@saving" @onclick="SaveAsync">@(saving ? "Creating…" : "Create character")</button><a class="quiet action-link" href="/">Cancel</a></div>
+   @if (creation.AttributeFields.Count > 0)
+   {
+    <section class="attribute-allocation" aria-labelledby="attribute-heading">
+     <div class="attribute-heading"><div><h2 id="attribute-heading">Assign attribute scores</h2><p>Roll six scores with <code>4d6kh3</code>, then select a score and choose the attribute that receives it.</p></div><button type="button" class="quiet" @onclick="RollScores">@(rolledScores.Count == 0 ? "Roll scores" : "Reroll")</button></div>
+     @if (rolledScores.Count > 0)
+     {
+      <div class="score-pool" aria-label="Available rolled scores">
+       @foreach (var score in AvailableScores)
+       { <button type="button" class="score-token @(selectedScoreId == score.Id ? "selected" : null)" aria-label="Select rolled score @score.Value" aria-pressed="@(selectedScoreId == score.Id)" @onclick="() => SelectScore(score.Id)">@score.Value</button> }
+       @if (!AvailableScores.Any()) { <span class="all-assigned">All scores assigned.</span> }
+      </div>
+      <div class="attribute-grid">
+       @foreach (var attributeField in creation.AttributeFields)
+       {
+        var score = AssignedScore(attributeField.Key);
+        <button type="button" class="attribute-slot @(score is null ? null : "assigned")" aria-label="@(score is null ? $"Assign selected score to {attributeField.Label}" : $"Unassign {score.Value} from {attributeField.Label}")" @onclick="() => ToggleAssignment(attributeField.Key)">
+         <span>@attributeField.Label</span><strong>@(score?.Value.ToString() ?? "—")</strong><small>@(score is null ? "Choose" : "Click to unassign")</small>
+        </button>
+       }
+      </div>
+      <button type="button" class="danger reset-allocation" @onclick="ResetAssignments" disabled="@(assignments.Count == 0)">Reset assignments</button>
+     }
+    </section>
+   }
+   <div class="actions"><button class="primary" disabled="@(!CanSave)" @onclick="SaveAsync">@(saving ? "Creating…" : "Create character")</button><a class="quiet action-link" href="/">Cancel</a></div>
   </section>
  }
 }
@@ -39,6 +64,9 @@ else
 @code {
  [Parameter] public Guid CampaignId { get; set; }
  private Campaign? campaign; private CharacterCreationDefinition? creation; private string name = ""; private string ancestryToken = ""; private string? error; private bool saving;
+ private readonly List<RolledScore> rolledScores = []; private readonly Dictionary<string, Guid> assignments = new(StringComparer.Ordinal); private Guid? selectedScoreId;
+ private IEnumerable<RolledScore> AvailableScores => rolledScores.Where(score => !assignments.ContainsValue(score.Id));
+ private bool CanSave => !saving && (creation?.AttributeFields.Count is not > 0 || assignments.Count == creation.AttributeFields.Count);
 
  protected override async Task OnParametersSetAsync()
  {
@@ -65,7 +93,8 @@ else
   {
    var parts = ancestryToken.Split('/', 2);
    if (parts.Length != 2) throw new ArgumentException("Choose an ancestry.");
-   var values = creation.CreateValues(name, new RulesRecordReference(parts[0], parts[1]));
+   var scores = assignments.ToDictionary(pair => pair.Key, pair => rolledScores.Single(score => score.Id == pair.Value).Value, StringComparer.Ordinal);
+   var values = creation.CreateValues(name, new RulesRecordReference(parts[0], parts[1]), scores);
    var character = Character.Create(campaign.Id, campaign.Ruleset, values, DateTimeOffset.UtcNow);
    await CharacterRepository.SaveAsync(character);
    Navigation.NavigateTo($"/campaigns/{campaign.Id}/characters/{character.Id}");
@@ -74,10 +103,32 @@ else
   finally { saving = false; }
  }
 
+ private void RollScores()
+ {
+  rolledScores.Clear(); assignments.Clear(); selectedScoreId = null;
+  for (var index = 0; index < 6; index++)
+  {
+   var result = DiceRoller.Roll(new DiceRollRequest(4, 6, label: $"Attribute score {index + 1}", keepHighest: 3));
+   rolledScores.Add(new RolledScore(result.Id, result.Total));
+  }
+ }
+
+ private void SelectScore(Guid id) => selectedScoreId = selectedScoreId == id ? null : id;
+ private RolledScore? AssignedScore(string attributeKey) => assignments.TryGetValue(attributeKey, out var id) ? rolledScores.Single(score => score.Id == id) : null;
+ private void ToggleAssignment(string attributeKey)
+ {
+  if (assignments.Remove(attributeKey)) return;
+  if (selectedScoreId is not { } id || assignments.ContainsValue(id)) return;
+  assignments[attributeKey] = id; selectedScoreId = null;
+ }
+ private void ResetAssignments() { assignments.Clear(); selectedScoreId = null; }
+
  private IEnumerable<string> TextDetails(RulesRecord record)
  {
   var displayField = creation?.Ruleset.RecordTypes.Find(record.RecordType)?.DisplayField;
   return record.Values.Where(pair => pair.Key != displayField && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
    .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
  }
+
+ private sealed record RolledScore(Guid Id, int Value);
 }
