@@ -1,3 +1,8 @@
+using AethericGm.Core.Npcs;
+using AethericGm.Core.People;
+using AethericGm.Core.Places;
+using AethericGm.Core.Entities;
+using AethericGm.Core.Relationships;
 using AethericForge.Runtime.Institutions.Abstractions.Builders;
 using AethericForge.Runtime.Institutions.Campus;
 using AethericForge.Runtime.Institutions.Registry;
@@ -51,6 +56,38 @@ public sealed class GmInstitutionTests
             Assert.Equal("Portable campaign", (await gm.Campaigns.GetAsync(campaignId))?.Name);
             Assert.Throws<InvalidOperationException>(() => campus.RegisterAethericGm(services));
             Assert.Same(gm, campus.Resolve<IAethericGm>());
+        }
+    }
+
+    [Fact]
+    public async Task Campaign_world_capabilities_preserve_data_across_hosts()
+    {
+        using var storage = new GmTestStorage();
+        var campaign = Campaign.Create("World", DateTimeOffset.UtcNow);
+        var npc = CampaignNpc.Create(campaign.Id, "Guide", null, DateTimeOffset.UtcNow);
+        var faction = CampaignEntity.Create(campaign.Id, EntityKind.Faction, "Guild", DateTimeOffset.UtcNow);
+        var place = Place.Create(campaign.Id, "Harbor", null, DateTimeOffset.UtcNow);
+        var source = new EntityReference(EntityKind.Npc, npc.Id);
+        var relationship = Relationship.Create(campaign.Id, source,
+            new EntityReference(EntityKind.Faction, faction.Id), "member", false, false, DateTimeOffset.UtcNow);
+        await using (var services = storage.CreateServices())
+        {
+            await services.InitializeLocalGmStorageAsync();
+            var gm = CreateCampus(services, "Original host").RegisterAethericGm(services);
+            await gm.Campaigns.SaveAsync(campaign);
+            await gm.Npcs.SaveAsync(npc);
+            await gm.People.SaveAsync(faction);
+            await gm.Places.SaveAsync(place);
+            await gm.Relationships.SaveAsync(relationship);
+        }
+        await using (var services = storage.CreateServices())
+        {
+            await services.InitializeLocalGmStorageAsync();
+            var gm = CreateCampus(services, "New host").RegisterAethericGm(services);
+            Assert.Equal(npc.Id, Assert.Single(await gm.Npcs.ListAsync(campaign.Id)).Id);
+            Assert.Equal(faction.Id, Assert.Single(await gm.People.ListAsync(campaign.Id)).Id);
+            Assert.Equal(place.Id, Assert.Single(await gm.Places.ListAsync(campaign.Id)).Id);
+            Assert.Equal(relationship.Id, Assert.Single(await gm.Relationships.ListForEntityAsync(campaign.Id, source)).Id);
         }
     }
 

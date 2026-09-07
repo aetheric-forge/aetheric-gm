@@ -1,3 +1,7 @@
+using AethericGm.Core.Npcs;
+using AethericGm.Core.People;
+using AethericGm.Core.Places;
+using AethericGm.Core.Relationships;
 using AethericGm.Core.Campaigns;
 using AethericGm.Core.Characters;
 using AethericGm.Core.Dice;
@@ -17,6 +21,10 @@ public sealed class AethericGmInstitution(
     ICharacterSheetDefinitionStore characterSheets,
     IRulesPackageInstaller packages,
     ISshCredentialService credentials,
+    INpcRepository npcs,
+    ICampaignEntityRepository people,
+    ICampaignPlaceRepository places,
+    ICampaignRelationshipRepository relationships,
     IDiceRoller dice) : InstitutionBase(context), IAethericGm
 {
     public ICampaignRepository Campaigns { get; } = campaigns;
@@ -25,5 +33,9 @@ public sealed class AethericGmInstitution(
     public ICharacterSheetDefinitionStore CharacterSheets { get; } = characterSheets;
     public IRulesPackageInstaller Packages { get; } = packages;
     public ISshCredentialService Credentials { get; } = credentials;
+    public INpcRepository Npcs { get; } = npcs;
+    public ICampaignEntityRepository People { get; } = people;
+    public ICampaignPlaceRepository Places { get; } = places;
+    public ICampaignRelationshipRepository Relationships { get; } = relationships;
     public IDiceRoller Dice { get; } = dice;
 }

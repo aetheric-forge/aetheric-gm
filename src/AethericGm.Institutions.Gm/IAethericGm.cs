@@ -1,3 +1,7 @@
+using AethericGm.Core.Npcs;
+using AethericGm.Core.People;
+using AethericGm.Core.Places;
+using AethericGm.Core.Relationships;
 using AethericGm.Core.Campaigns;
 using AethericGm.Core.Characters;
 using AethericGm.Core.Dice;
@@ -18,5 +22,9 @@ public interface IAethericGm : IInstitution
     ICharacterSheetDefinitionStore CharacterSheets { get; }
     IRulesPackageInstaller Packages { get; }
     ISshCredentialService Credentials { get; }
+    INpcRepository Npcs { get; }
+    ICampaignEntityRepository People { get; }
+    ICampaignPlaceRepository Places { get; }
+    ICampaignRelationshipRepository Relationships { get; }
     IDiceRoller Dice { get; }
 }

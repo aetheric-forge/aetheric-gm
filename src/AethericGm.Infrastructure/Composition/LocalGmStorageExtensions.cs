@@ -1,3 +1,12 @@
+using Microsoft.Extensions.Logging;
+using AethericGm.Core.Npcs;
+using AethericGm.Infrastructure.Npcs;
+using AethericGm.Core.People;
+using AethericGm.Infrastructure.People;
+using AethericGm.Core.Places;
+using AethericGm.Infrastructure.Places;
+using AethericGm.Core.Relationships;
+using AethericGm.Infrastructure.Relationships;
 using AethericGm.Core.Campaigns;
 using AethericGm.Core.Characters;
 using AethericGm.Core.Dice;
@@ -45,10 +54,18 @@ public static class LocalGmStorageExtensions
             connectionString, sp.GetRequiredService<ISshPrivateKeyProtector>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IRulesPackageInstaller>(sp => new GitRulesPackageInstaller(
             connectionString, Path.Combine(options.DataDirectory, "RulesPackages"),
-            sp.GetRequiredService<ISshCredentialService>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<ISshCredentialService>(), sp.GetService<ILogger<GitRulesPackageInstaller>>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IRulesCatalog>(new FileRulesCatalog(options.RulesCatalogPath));
         services.AddSingleton<ICharacterSheetDefinitionStore>(sp => new FileCharacterSheetDefinitionStore(
             options.RulesCatalogPath, sp.GetRequiredService<IRulesCatalog>()));
+        services.AddSingleton(new SqliteNpcRepository(connectionString));
+        services.AddSingleton<INpcRepository>(sp => sp.GetRequiredService<SqliteNpcRepository>());
+        services.AddSingleton(new SqliteCampaignEntityRepository(connectionString));
+        services.AddSingleton<ICampaignEntityRepository>(sp => sp.GetRequiredService<SqliteCampaignEntityRepository>());
+        services.AddSingleton(new SqliteCampaignPlaceRepository(connectionString));
+        services.AddSingleton<ICampaignPlaceRepository>(sp => sp.GetRequiredService<SqliteCampaignPlaceRepository>());
+        services.AddSingleton(new SqliteRelationshipRepository(connectionString));
+        services.AddSingleton<ICampaignRelationshipRepository>(sp => sp.GetRequiredService<SqliteRelationshipRepository>());
         services.AddSingleton<RulesetWorkspaceResolver>();
         return services;
     }
@@ -58,6 +75,10 @@ public static class LocalGmStorageExtensions
         Directory.CreateDirectory(services.GetRequiredService<LocalGmStorageOptions>().DataDirectory);
         await services.GetRequiredService<SqliteCampaignRepository>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<SqliteCharacterRepository>().InitializeAsync(cancellationToken);
+        await services.GetRequiredService<SqliteNpcRepository>().InitializeAsync(cancellationToken);
+        await services.GetRequiredService<SqliteCampaignEntityRepository>().InitializeAsync(cancellationToken);
+        await services.GetRequiredService<SqliteCampaignPlaceRepository>().InitializeAsync(cancellationToken);
+        await services.GetRequiredService<SqliteRelationshipRepository>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<ISshCredentialService>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<IRulesPackageInstaller>().InitializeAsync(cancellationToken);
     }

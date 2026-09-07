@@ -64,6 +64,11 @@ builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(p
 builder.Services.AddSingleton<ISshPrivateKeyProtector, DataProtectionSshPrivateKeyProtector>();
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
 builder.Services.AddLocalGmStorage(new LocalGmStorageOptions(dataDirectory, rulesCatalogPath));
+builder.Services.AddSingleton(sp =>
+{
+    var gm = sp.GetRequiredService<IAethericGm>();
+    return new AethericGm.Web.People.CampaignEntityDirectory(gm.Npcs, gm.People, gm.Characters, gm.Places);
+});
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(
