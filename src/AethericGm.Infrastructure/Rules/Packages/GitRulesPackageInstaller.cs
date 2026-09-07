@@ -254,8 +254,10 @@ public sealed partial class GitRulesPackageInstaller(
         start.ArgumentList.Add("-t"); start.ArgumentList.Add("ed25519,ecdsa,rsa"); start.ArgumentList.Add(source.Host);
         using var process = Process.Start(start) ?? throw new RulesPackageInstallException("SSH host inspection could not be started.");
         var outputTask = process.StandardOutput.ReadToEndAsync(ct);
+        var errorTask = process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
-        var line = (await outputTask).Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(value => !value.StartsWith('#'));
+        await errorTask;
+        var line = SelectHostKeyLine(await outputTask);
         if (process.ExitCode != 0 || line is null) throw new RulesPackageInstallException("The SSH host could not be reached for identity verification.");
         var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3) throw new RulesPackageInstallException("The SSH host returned an invalid identity.");
@@ -264,6 +266,24 @@ public sealed partial class GitRulesPackageInstaller(
         catch (FormatException) { throw new RulesPackageInstallException("The SSH host returned an invalid identity."); }
         var fingerprint = Convert.ToBase64String(SHA256.HashData(key)).TrimEnd('=');
         return new ScannedHostKey(parts[1], parts[2], $"SHA256:{fingerprint}", line);
+    }
+
+    internal static string? SelectHostKeyLine(string output)
+    {
+        var candidates = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => !line.StartsWith('#'))
+            .Select(line => new { Line = line, Parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) })
+            .Where(candidate => candidate.Parts.Length >= 3)
+            .ToArray();
+        // ssh-keyscan returns results in arrival order, not the requested algorithm order.
+        foreach (var algorithm in new[] { "ssh-ed25519", "ecdsa-sha2-nistp256", "ssh-rsa" })
+        {
+            var match = candidates.Where(candidate => candidate.Parts[1] == algorithm)
+                .OrderBy(candidate => candidate.Parts[2], StringComparer.Ordinal).FirstOrDefault();
+            if (match is not null) return match.Line;
+        }
+        return null;
     }
 
     private async Task<KnownHost?> GetKnownHostAsync(string owner, GitSshSource source, string algorithm, CancellationToken ct)

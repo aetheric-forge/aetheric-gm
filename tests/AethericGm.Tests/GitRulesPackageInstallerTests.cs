@@ -33,6 +33,23 @@ public sealed class GitRulesPackageInstallerTests : IDisposable
         await Assert.ThrowsAsync<RulesPackageInstallException>(() => installer.InstallFromGitAsync("operator", new(repository, revision, null, null)));
     }
 
+    [Theory]
+    [InlineData("host ssh-rsa cnNh\nhost ssh-ed25519 ZWQ=\nhost ecdsa-sha2-nistp256 ZWM=")]
+    [InlineData("host ecdsa-sha2-nistp256 ZWM=\nhost ssh-rsa cnNh\nhost ssh-ed25519 ZWQ=")]
+    [InlineData("# comment\nhost ssh-ed25519 ZWQ=\nhost ssh-rsa cnNh")]
+    public void Host_key_selection_prefers_ed25519_regardless_of_scan_order(string scan)
+    {
+        Assert.Equal("host ssh-ed25519 ZWQ=", GitRulesPackageInstaller.SelectHostKeyLine(scan));
+    }
+
+    [Fact]
+    public void Host_key_selection_falls_back_when_ed25519_is_unavailable()
+    {
+        Assert.Equal("host ecdsa-sha2-nistp256 ZWM=", GitRulesPackageInstaller.SelectHostKeyLine(
+            "host ssh-rsa cnNh\nhost ecdsa-sha2-nistp256 ZWM="));
+        Assert.Null(GitRulesPackageInstaller.SelectHostKeyLine("# no keys\n"));
+    }
+
     public void Dispose() { if (Directory.Exists(root)) Directory.Delete(root, true); }
 
     private sealed class UnusedCredentials : ISshCredentialService

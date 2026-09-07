@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="AethericGm.Tests" />
     <ProjectReference Include="..\AethericGm.Core\AethericGm.Core.csproj" />
   </ItemGroup>
 
