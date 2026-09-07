@@ -18,7 +18,14 @@ internal static class SshPrivateKeyInspector
         var bytes = Encoding.UTF8.GetBytes(privateKey.Trim());
         try
         {
-            if (TryOpen(bytes, null, out var inspection)) return inspection with { RequiresPassphrase = false };
+            if (TryOpen(bytes, null, out var inspection))
+            {
+                if (!string.IsNullOrEmpty(passphrase))
+                    throw new SshCredentialValidationException(
+                        "The pasted key opened without a passphrase, so the supplied passphrase was not validated. " +
+                        "Import cancelled. Check the pasted key; leave the passphrase blank only if this is the key you intend to import.");
+                return inspection with { RequiresPassphrase = false };
+            }
             if (string.IsNullOrEmpty(passphrase)) throw new SshCredentialValidationException("The private key is invalid or requires a passphrase.");
             if (TryOpen(bytes, passphrase, out inspection)) return inspection with { RequiresPassphrase = true };
             throw new SshCredentialValidationException("The private key or passphrase is invalid, or the key format is unsupported.");

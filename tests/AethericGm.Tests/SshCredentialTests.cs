@@ -56,6 +56,44 @@ public sealed class SshCredentialTests : IDisposable
     }
 
     [Fact]
+    public async Task Detects_encrypted_openssh_ed25519_keys_and_preserves_metadata()
+    {
+        const string passphrase = "test-only-passphrase";
+        var directory = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"gm-ed25519-{Guid.NewGuid():N}"));
+        try
+        {
+            var path = Path.Combine(directory.FullName, "key");
+            var start = new System.Diagnostics.ProcessStartInfo("ssh-keygen") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (var argument in new[] { "-q", "-t", "ed25519", "-N", passphrase, "-f", path }) start.ArgumentList.Add(argument);
+            using var process = System.Diagnostics.Process.Start(start)!;
+            await process.WaitForExitAsync();
+            Assert.Equal(0, process.ExitCode);
+            var key = await File.ReadAllTextAsync(path);
+            var service = CreateService();
+            await service.InitializeAsync();
+            await Assert.ThrowsAsync<SshCredentialValidationException>(() => service.AddAsync("owner", "Encrypted", key, null));
+            await Assert.ThrowsAsync<SshCredentialValidationException>(() => service.AddAsync("owner", "Encrypted", key, "wrong"));
+            var added = await service.AddAsync("owner", "Encrypted", key, passphrase);
+            Assert.True(added.RequiresPassphrase);
+            Assert.True(Assert.Single(await service.ListAsync("owner")).RequiresPassphrase);
+            Assert.True((await service.GetAsync("owner", added.Id))!.RequiresPassphrase);
+        }
+        finally { directory.Delete(true); }
+    }
+
+    [Fact]
+    public async Task Does_not_silently_ignore_a_supplied_passphrase_when_key_opens_without_it()
+    {
+        var service = CreateService();
+        await service.InitializeAsync();
+        var error = await Assert.ThrowsAsync<SshCredentialValidationException>(() =>
+            service.AddAsync("owner", "Unexpected key", CreatePrivateKey(), "arbitrary-input"));
+        Assert.Contains("opened without a passphrase", error.Message);
+        Assert.DoesNotContain("arbitrary-input", error.Message);
+        Assert.Empty(await service.ListAsync("owner"));
+    }
+
+    [Fact]
     public async Task Renames_and_removes_only_credentials_owned_by_the_profile()
     {
         var service = CreateService(); await service.InitializeAsync();
