@@ -1,9 +1,5 @@
 @page "/"
-@inject ICampaignRepository Repository
-@inject IRulesCatalog RulesCatalog
-@inject IRulesPackageInstaller PackageInstaller
-@inject ISshCredentialService CredentialService
-@inject ICharacterRepository CharacterRepository
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @inject AuthenticationStateProvider AuthenticationStateProvider
 <PageTitle>Campaigns · Aetheric GM</PageTitle>
 <header class="page-header"><div><p class="eyebrow">Campaign workspace</p><h1>Your campaigns</h1><p>Keep every table's material in its own workspace.</p></div><button class="primary" @onclick="BeginCreate">New campaign</button></header>
@@ -59,4 +55,12 @@
   return name is null ? $"Unavailable - {campaign.Ruleset}" : $"{name} - {campaign.Ruleset}";
  }
  private sealed class Draft { public string Name { get; set; } = ""; public string Ruleset { get; set; } = ""; public string? Setting { get; set; } public string? Summary { get; set; } } private sealed class PackageDraft { public string RepositoryUrl { get; set; } = ""; public string Revision { get; set; } = "main"; public string Credential { get; set; } = ""; public string? Passphrase { get; set; } }
+}
+
+@code {
+    private ICampaignRepository Repository => Gm.Campaigns;
+    private IRulesCatalog RulesCatalog => Gm.Rules;
+    private IRulesPackageInstaller PackageInstaller => Gm.Packages;
+    private ISshCredentialService CredentialService => Gm.Credentials;
+    private ICharacterRepository CharacterRepository => Gm.Characters;
 }

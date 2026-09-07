@@ -1,10 +1,9 @@
 @page "/campaigns/{CampaignId:guid}/characters/new"
-@inject ICampaignRepository CampaignRepository
-@inject ICharacterRepository CharacterRepository
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @inject RulesetWorkspaceResolver Rulesets
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
-@using AethericGm.Web.Rules
+@using AethericGm.Infrastructure.Rules
 
 <PageTitle>Create character · Aetheric GM</PageTitle>
 
@@ -80,4 +79,9 @@ else
   return record.Values.Where(pair => pair.Key != displayField && pair.Value.ValueKind == System.Text.Json.JsonValueKind.String)
    .Select(pair => pair.Value.GetString()).Where(value => !string.IsNullOrWhiteSpace(value))!;
  }
+}
+
+@code {
+    private ICampaignRepository CampaignRepository => Gm.Campaigns;
+    private ICharacterRepository CharacterRepository => Gm.Characters;
 }

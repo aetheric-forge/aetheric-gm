@@ -1,10 +1,9 @@
 @page "/campaigns/{CampaignId:guid}/characters/{CharacterId:guid}"
-@inject ICampaignRepository CampaignRepository
-@inject ICharacterRepository CharacterRepository
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @inject RulesetWorkspaceResolver Rulesets
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DiceTrayState Tray
-@using AethericGm.Web.Rules
+@using AethericGm.Infrastructure.Rules
 @using AethericGm.Web.Characters
 @using AethericGm.Web.Dice
 
@@ -156,4 +155,9 @@ else
   if (values.TryGetProperty("bonus", out var bonus) && bonus.TryGetInt32(out var bonusValue)) return bonusValue;
   return values.TryGetProperty("value", out var score) && score.TryGetInt32(out var scoreValue) ? scoreValue : null;
  }
+}
+
+@code {
+    private ICampaignRepository CampaignRepository => Gm.Campaigns;
+    private ICharacterRepository CharacterRepository => Gm.Characters;
 }

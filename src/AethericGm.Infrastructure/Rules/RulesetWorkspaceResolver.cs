@@ -4,7 +4,7 @@ using AethericGm.Core.Rules.Packages;
 using AethericGm.Infrastructure.Rules;
 using AethericGm.Infrastructure.Rules.CharacterSheets;
 
-namespace AethericGm.Web.Rules;
+namespace AethericGm.Infrastructure.Rules;
 
 public sealed class RulesetWorkspaceResolver(
     IRulesCatalog catalog,

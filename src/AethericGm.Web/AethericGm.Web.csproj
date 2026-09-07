@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../AethericGm.Institutions.Gm/AethericGm.Institutions.Gm.csproj" />
     <ProjectReference Include="..\AethericGm.Core\AethericGm.Core.csproj" />
     <ProjectReference Include="..\AethericGm.Infrastructure\AethericGm.Infrastructure.csproj" />
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Campus\AethericForge.Runtime.Institutions.Campus.csproj" />
