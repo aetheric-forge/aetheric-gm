@@ -1,0 +1,28 @@
+@using AethericGm.Web.Rules
+
+<div class="markdown-editor">
+ <div class="markdown-editor-tabs" role="tablist" aria-label="Markdown view">
+  <button type="button" role="tab" aria-selected="@(!previewing)" class="@(previewing ? null : "selected")" @onclick="() => previewing = false">Write</button>
+  <button type="button" role="tab" aria-selected="@previewing" class="@(previewing ? "selected" : null)" @onclick="() => previewing = true">Preview</button>
+ </div>
+ @if (previewing)
+ {
+  <div class="markdown-preview" role="tabpanel">
+   @if (string.IsNullOrWhiteSpace(Value)) { <p class="markdown-empty">Nothing to preview yet.</p> }
+   else { @((MarkupString)MarkdownRenderer.ToHtml(Value)) }
+  </div>
+ }
+ else
+ {
+  <textarea role="tabpanel" rows="@Rows" value="@Value" @oninput="UpdateValue" aria-label="@AriaLabel" spellcheck="true"></textarea>
+ }
+</div>
+
+@code {
+ [Parameter] public string Value { get; set; } = "";
+ [Parameter] public EventCallback<string> ValueChanged { get; set; }
+ [Parameter] public string AriaLabel { get; set; } = "Markdown source";
+ [Parameter] public int Rows { get; set; } = 8;
+ private bool previewing;
+ private Task UpdateValue(ChangeEventArgs eventArgs) => ValueChanged.InvokeAsync(eventArgs.Value?.ToString() ?? "");
+}

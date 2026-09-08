@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../AethericGm.Institutions.Gm/AethericGm.Institutions.Gm.csproj" />
     <ProjectReference Include="..\AethericGm.Core\AethericGm.Core.csproj" />
     <ProjectReference Include="..\AethericGm.Infrastructure\AethericGm.Infrastructure.csproj" />
     <ProjectReference Include="..\..\runtime\src\Institutions\AethericForge.Runtime.Institutions.Campus\AethericForge.Runtime.Institutions.Campus.csproj" />
@@ -19,6 +20,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.0" />
+    <PackageReference Include="Markdig" Version="1.3.2" />
   </ItemGroup>
 
 </Project>

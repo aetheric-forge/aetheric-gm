@@ -1,7 +1,5 @@
 @page "/rulesets/{RulesetId}/{Version}/character-sheet"
-@inject IRulesCatalog Catalog
-@inject ICharacterSheetDefinitionStore Store
-@inject IRulesPackageInstaller PackageInstaller
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @using AethericGm.Infrastructure.Rules
@@ -96,4 +94,10 @@ else
  private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
  private sealed class EditableSection { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public List<EditableField> Fields { get; set; } = []; public static EditableSection From(CharacterSheetSection value) => new() { Key = value.Key, Label = value.Label, Fields = value.Fields.Select(EditableField.From).ToList() }; }
  private sealed class EditableField { public string Key { get; set; } = ""; public string Label { get; set; } = ""; public RecordValueKind ValueKind { get; set; } public RecordCardinality Cardinality { get; set; } = RecordCardinality.One; public string? RecordType { get; set; } public static EditableField From(CharacterSheetField value) => new() { Key = value.Key, Label = value.Label, ValueKind = value.ValueKind, Cardinality = value.Cardinality, RecordType = value.RecordType }; }
+}
+
+@code {
+    private IRulesCatalog Catalog => Gm.Rules;
+    private ICharacterSheetDefinitionStore Store => Gm.CharacterSheets;
+    private IRulesPackageInstaller PackageInstaller => Gm.Packages;
 }

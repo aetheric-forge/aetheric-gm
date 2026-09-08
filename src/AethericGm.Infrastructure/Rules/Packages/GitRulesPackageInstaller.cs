@@ -8,6 +8,7 @@ using AethericGm.Core.Profiles;
 using AethericGm.Core.Rules;
 using AethericGm.Core.Rules.Packages;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 
 namespace AethericGm.Infrastructure.Rules.Packages;
@@ -16,6 +17,7 @@ public sealed partial class GitRulesPackageInstaller(
     string connectionString,
     string packageRoot,
     ISshCredentialService credentials,
+    ILogger<GitRulesPackageInstaller>? logger = null,
     TimeProvider? timeProvider = null) : IRulesPackageInstaller
 {
     private static readonly string[] PackageFiles = ["manifest.json", "record-types.json", "records.json", "character-sheet.json", "catalog.json"];
@@ -92,7 +94,10 @@ public sealed partial class GitRulesPackageInstaller(
     {
         var operationRoot = Path.Combine(Path.GetTempPath(), $"aetheric-gm-package-{Guid.NewGuid():N}");
         var repositoryPath = Path.Combine(operationRoot, "repository");
-        var stagingPath = Path.Combine(operationRoot, "package");
+        // Staged under packageRoot itself, not system temp: the final install below is a same-filesystem
+        // rename for atomicity, and Path.GetTempPath() is frequently a separate mount (e.g. tmpfs) from
+        // the app's data directory, where Directory.Move fails with "Invalid cross-device link" (EXDEV).
+        var stagingPath = Path.Combine(packageRoot, ".staging", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(repositoryPath);
         Directory.CreateDirectory(stagingPath);
         string? keyPath = null;
@@ -155,12 +160,17 @@ public sealed partial class GitRulesPackageInstaller(
         }
         catch (RulesPackageInstallException) { throw; }
         catch (OperationCanceledException) { throw; }
-        catch { throw new RulesPackageInstallException("The repository could not be acquired. Check its address, revision, credential, and passphrase."); }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Rules package acquisition from {Host} failed unexpectedly.", source.Host);
+            throw new RulesPackageInstallException("The repository could not be acquired. Check its address, revision, credential, and passphrase.");
+        }
         finally
         {
             if (passphraseServer is not null) await passphraseServer.DisposeAsync();
             if (keyPath is not null && File.Exists(keyPath)) File.Delete(keyPath);
             if (Directory.Exists(operationRoot)) Directory.Delete(operationRoot, true);
+            if (Directory.Exists(stagingPath)) Directory.Delete(stagingPath, true);
         }
     }
 
@@ -193,7 +203,7 @@ public sealed partial class GitRulesPackageInstaller(
         return arguments;
     }
 
-    private static async Task<string> RunGitAsync(string workingDirectory, IReadOnlyList<string> arguments, PassphraseServer? passphrase,
+    private async Task<string> RunGitAsync(string workingDirectory, IReadOnlyList<string> arguments, PassphraseServer? passphrase,
         CancellationToken ct, int outputLimit = 256 * 1024)
     {
         var start = new ProcessStartInfo("git") { WorkingDirectory = workingDirectory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
@@ -219,8 +229,9 @@ public sealed partial class GitRulesPackageInstaller(
         return stdout;
     }
 
-    private static RulesPackageInstallException GitFailure(string diagnostic)
+    private RulesPackageInstallException GitFailure(string diagnostic)
     {
+        logger?.LogWarning("git/ssh reported: {Diagnostic}", diagnostic.Trim());
         if (diagnostic.Contains("couldn't find remote ref", StringComparison.OrdinalIgnoreCase))
             return new("The requested branch, tag, or commit was not found.");
         if (diagnostic.Contains("Repository not found", StringComparison.OrdinalIgnoreCase))
@@ -243,8 +254,10 @@ public sealed partial class GitRulesPackageInstaller(
         start.ArgumentList.Add("-t"); start.ArgumentList.Add("ed25519,ecdsa,rsa"); start.ArgumentList.Add(source.Host);
         using var process = Process.Start(start) ?? throw new RulesPackageInstallException("SSH host inspection could not be started.");
         var outputTask = process.StandardOutput.ReadToEndAsync(ct);
+        var errorTask = process.StandardError.ReadToEndAsync(ct);
         await process.WaitForExitAsync(ct);
-        var line = (await outputTask).Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(value => !value.StartsWith('#'));
+        await errorTask;
+        var line = SelectHostKeyLine(await outputTask);
         if (process.ExitCode != 0 || line is null) throw new RulesPackageInstallException("The SSH host could not be reached for identity verification.");
         var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3) throw new RulesPackageInstallException("The SSH host returned an invalid identity.");
@@ -253,6 +266,24 @@ public sealed partial class GitRulesPackageInstaller(
         catch (FormatException) { throw new RulesPackageInstallException("The SSH host returned an invalid identity."); }
         var fingerprint = Convert.ToBase64String(SHA256.HashData(key)).TrimEnd('=');
         return new ScannedHostKey(parts[1], parts[2], $"SHA256:{fingerprint}", line);
+    }
+
+    internal static string? SelectHostKeyLine(string output)
+    {
+        var candidates = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => !line.StartsWith('#'))
+            .Select(line => new { Line = line, Parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) })
+            .Where(candidate => candidate.Parts.Length >= 3)
+            .ToArray();
+        // ssh-keyscan returns results in arrival order, not the requested algorithm order.
+        foreach (var algorithm in new[] { "ssh-ed25519", "ecdsa-sha2-nistp256", "ssh-rsa" })
+        {
+            var match = candidates.Where(candidate => candidate.Parts[1] == algorithm)
+                .OrderBy(candidate => candidate.Parts[2], StringComparer.Ordinal).FirstOrDefault();
+            if (match is not null) return match.Line;
+        }
+        return null;
     }
 
     private async Task<KnownHost?> GetKnownHostAsync(string owner, GitSshSource source, string algorithm, CancellationToken ct)

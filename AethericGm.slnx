@@ -23,6 +23,7 @@
     <Project Path="runtime/src/Services/AethericForge.Runtime.Services.Workbench/AethericForge.Runtime.Services.Workbench.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/AethericGm.Institutions.Gm/AethericGm.Institutions.Gm.csproj" />
     <Project Path="src/AethericGm.Core/AethericGm.Core.csproj" />
     <Project Path="src/AethericGm.Infrastructure/AethericGm.Infrastructure.csproj" />
     <Project Path="src/AethericGm.Web/AethericGm.Web.csproj" />

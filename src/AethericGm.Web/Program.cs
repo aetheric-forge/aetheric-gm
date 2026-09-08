@@ -1,21 +1,10 @@
 using AethericGm.Web.Components;
-using AethericGm.Core.Campaigns;
-using AethericGm.Infrastructure.Campaigns;
-using AethericGm.Core.Rules;
-using AethericGm.Infrastructure.Rules;
-using AethericGm.Core.Rules.CharacterSheets;
-using AethericGm.Infrastructure.Rules.CharacterSheets;
 using AethericGm.Web.Composition;
 using AethericGm.Core.Profiles;
-using AethericGm.Infrastructure.Profiles;
+using AethericGm.Infrastructure.Composition;
+using AethericGm.Institutions.Gm;
 using AethericGm.Web.Profiles;
-using AethericGm.Core.Rules.Packages;
-using AethericGm.Infrastructure.Rules.Packages;
-using AethericGm.Core.Dice;
 using AethericGm.Web.Dice;
-using AethericGm.Core.Characters;
-using AethericGm.Infrastructure.Characters;
-using AethericGm.Web.Rules;
 using AethericForge.Runtime.Providers.Identity.Keycloak;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -64,45 +53,33 @@ builder.Services
         };
     });
 builder.Services.AddAuthorization();
-builder.Services.AddSingleton<IDiceRandomSource, CryptographicDiceRandomSource>();
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IDiceRoller, DiceRoller>();
-builder.Services.AddScoped<DiceTrayState>();
+builder.Services.AddScoped(sp => new DiceTrayState(sp.GetRequiredService<IAethericGm>().Dice));
 
 var dataDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
 Directory.CreateDirectory(dataDirectory);
-var databaseConnectionString = $"Data Source={Path.Combine(dataDirectory, "aetheric-gm.db")}";
 var protectionKeysDirectory = Path.Combine(dataDirectory, "DataProtection-Keys");
 Directory.CreateDirectory(protectionKeysDirectory);
 if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(protectionKeysDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(protectionKeysDirectory)).SetApplicationName("AethericGm");
 builder.Services.AddSingleton<ISshPrivateKeyProtector, DataProtectionSshPrivateKeyProtector>();
-builder.Services.AddSingleton<ISshCredentialService>(services => new SqliteSshCredentialService(databaseConnectionString, services.GetRequiredService<ISshPrivateKeyProtector>()));
-var installedPackagesPath = Path.Combine(dataDirectory, "RulesPackages");
-builder.Services.AddSingleton<IRulesPackageInstaller>(services => new GitRulesPackageInstaller(
-    databaseConnectionString, installedPackagesPath, services.GetRequiredService<ISshCredentialService>()));
-var campaignRepository = new SqliteCampaignRepository(databaseConnectionString);
-await campaignRepository.InitializeAsync();
-builder.Services.AddSingleton<ICampaignRepository>(campaignRepository);
-var characterRepository = new SqliteCharacterRepository(databaseConnectionString);
-await characterRepository.InitializeAsync();
-builder.Services.AddSingleton<ICharacterRepository>(characterRepository);
 var rulesCatalogPath = Path.GetFullPath(builder.Configuration["RulesCatalog:Path"] ?? "../../rulesets", builder.Environment.ContentRootPath);
-var rulesCatalog = new FileRulesCatalog(rulesCatalogPath);
-builder.Services.AddSingleton<IRulesCatalog>(rulesCatalog);
-builder.Services.AddSingleton<ICharacterSheetDefinitionStore>(new FileCharacterSheetDefinitionStore(rulesCatalogPath, rulesCatalog));
-builder.Services.AddSingleton<RulesetWorkspaceResolver>();
+builder.Services.AddLocalGmStorage(new LocalGmStorageOptions(dataDirectory, rulesCatalogPath));
+builder.Services.AddSingleton(sp =>
+{
+    var gm = sp.GetRequiredService<IAethericGm>();
+    return new AethericGm.Web.People.CampaignEntityDirectory(gm.Npcs, gm.People, gm.Characters, gm.Places);
+});
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetRequiredSection("Keycloak"));
 builder.Services.AddHttpClient("Keycloak");
 builder.Services.AddSingleton(services => new KeycloakIdentityProvider(
     services.GetRequiredService<IHttpClientFactory>().CreateClient("Keycloak"),
     services.GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakOptions>>().Value));
 builder.Services.AddSingleton<AethericGmCampus>();
+builder.Services.AddSingleton<IAethericGm>(sp => sp.GetRequiredService<AethericGmCampus>().Gm);
 builder.Services.AddHostedService(services => services.GetRequiredService<AethericGmCampus>());
 
 var app = builder.Build();
-await app.Services.GetRequiredService<ISshCredentialService>().InitializeAsync();
-await app.Services.GetRequiredService<IRulesPackageInstaller>().InitializeAsync();
+await app.Services.InitializeLocalGmStorageAsync();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

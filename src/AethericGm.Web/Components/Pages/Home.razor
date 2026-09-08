@@ -1,9 +1,5 @@
 @page "/"
-@inject ICampaignRepository Repository
-@inject IRulesCatalog RulesCatalog
-@inject IRulesPackageInstaller PackageInstaller
-@inject ISshCredentialService CredentialService
-@inject ICharacterRepository CharacterRepository
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @inject AuthenticationStateProvider AuthenticationStateProvider
 <PageTitle>Campaigns · Aetheric GM</PageTitle>
 <header class="page-header"><div><p class="eyebrow">Campaign workspace</p><h1>Your campaigns</h1><p>Keep every table's material in its own workspace.</p></div><button class="primary" @onclick="BeginCreate">New campaign</button></header>
@@ -17,8 +13,8 @@
    @if (!string.IsNullOrEmpty(packageMessage)) { <p class="success">@packageMessage</p> }
    @if (!string.IsNullOrEmpty(packageError)) { <p class="error">@packageError</p> }
    <label>SSH repository <input @bind="packageDraft.RepositoryUrl" placeholder="git@example.com:owner/rules.git" /></label>
-   <div class="field-row"><label>Branch, tag, or commit <input @bind="packageDraft.Revision" /></label><label>SSH credential <select @bind="packageDraft.Credential"><option value="">No credential (public)</option>@foreach (var credential in sshCredentials) { <option value="@credential.Id">@credential.Name · @credential.Algorithm</option> }</select></label></div>
-   @if (SelectedCredential?.RequiresPassphrase == true) { <label>Passphrase <input type="password" autocomplete="off" @bind="packageDraft.Passphrase" /></label> }
+   <div class="field-row"><label>Branch, tag, or commit <input @bind="packageDraft.Revision" /></label><label>SSH credential <select @bind="packageDraft.Credential" @bind:after="CredentialChanged"><option value="">No credential (public)</option>@foreach (var credential in sshCredentials) { <option value="@credential.Id">@credential.Name · @credential.Algorithm</option> }</select></label></div>
+   @if (SelectedCredential is not null) { <label>@(SelectedCredential.RequiresPassphrase ? "Passphrase" : "Passphrase (if your key requires one)") <input type="password" autocomplete="off" @bind="packageDraft.Passphrase" /></label> }
    @if (hostKey is not null)
    {
     <div class="host-key-review"><h4>@(hostKeyChanged ? "SSH host identity changed" : "Review SSH host")</h4><p>Confirm this identity through a trusted source before continuing. A changed identity may indicate an attack.</p><dl><dt>Host</dt><dd>@hostKey.Host:@hostKey.Port</dd><dt>Algorithm</dt><dd>@hostKey.Algorithm</dd><dt>Fingerprint</dt><dd><code>@hostKey.Fingerprint</code></dd></dl><div class="actions"><button class="danger" disabled="@installing" @onclick="AcceptHostAndInstallAsync">Trust this identity and install</button><button class="quiet" @onclick="ClearHostReview">Cancel</button></div></div>
@@ -37,12 +33,25 @@
   else if (characters.Count == 0) { <p class="catalog-empty">No characters yet. Create the first character from @RulesetName(selected).</p> }
   else { <div class="character-list">@foreach (var character in characters) { <a href="/campaigns/@selected.Id/characters/@character.Id"><strong>@character.Name</strong><small>@character.Ruleset</small></a> }</div> }
  </section>
+ <section class="campaign-characters panel"><div class="record-heading"><div><p class="eyebrow">@selected.Name</p><h2>NPCs</h2></div><a class="primary action-link" href="/campaigns/@selected.Id/npcs">Open NPC catalog</a></div>
+  @if (npcs.Count == 0) { <p class="catalog-empty">No campaign NPCs yet.</p> }
+  else { <div class="character-list">@foreach (var npc in npcs.Take(6)) { <a href="/campaigns/@selected.Id/npcs/@npc.Id"><strong>@npc.Name</strong>@if (npc.Source is not null) { <small>From ruleset</small> }</a> }</div> }
+ </section>
+ <section class="campaign-characters panel"><div class="record-heading"><div><p class="eyebrow">@selected.Name</p><h2>People &amp; factions</h2></div><a class="primary action-link" href="/campaigns/@selected.Id/people">Open catalog</a></div>
+  @if (peopleAndFactions.Count == 0) { <p class="catalog-empty">No people or factions yet.</p> }
+  else { <div class="character-list">@foreach (var entry in peopleAndFactions.Take(6)) { <a href="/campaigns/@selected.Id/people/@entry.Id"><strong>@entry.Name</strong><small>@entry.Kind</small></a> }</div> }
+ </section>
+ <section class="campaign-characters panel"><div class="record-heading"><div><p class="eyebrow">@selected.Name</p><h2>Places</h2></div><a class="primary action-link" href="/campaigns/@selected.Id/places">Open catalog</a></div>
+  @if (places.Count == 0) { <p class="catalog-empty">No places yet.</p> }
+  else { <div class="character-list">@foreach (var place in places.Take(6)) { <a href="/campaigns/@selected.Id/places/@place.Id"><strong>@place.Name</strong></a> }</div> }
+ </section>
 }
 @code {
- private List<Campaign> campaigns = []; private List<Character> characters = []; private IReadOnlyList<RulesetDescriptor> rulesets = []; private IReadOnlyList<SshCredential> sshCredentials = []; private IReadOnlyList<InstalledRulesPackage> installedPackages = [];
+ private List<Campaign> campaigns = []; private List<Character> characters = []; private List<CampaignNpc> npcs = []; private List<CampaignEntity> peopleAndFactions = []; private List<Place> places = []; private IReadOnlyList<RulesetDescriptor> rulesets = []; private IReadOnlyList<SshCredential> sshCredentials = []; private IReadOnlyList<InstalledRulesPackage> installedPackages = [];
  private Campaign? selected; private bool showArchived, editing, installing, hostKeyChanged; private string? error, packageError, packageMessage, ownerSubjectId; private SshHostKey? hostKey; private Draft draft = new(); private PackageDraft packageDraft = new();
+ private void CredentialChanged() { packageDraft.Passphrase = null; hostKey = null; hostKeyChanged = false; packageError = null; }
  private SshCredential? SelectedCredential => Guid.TryParse(packageDraft.Credential, out var id) ? sshCredentials.FirstOrDefault(value => value.Id == id) : null;
- protected override async Task OnInitializedAsync() { var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User; ownerSubjectId = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier); rulesets = RulesCatalog.List(); await LoadAsync(); if (ownerSubjectId is not null) { sshCredentials = await CredentialService.ListAsync(ownerSubjectId); installedPackages = await PackageInstaller.ListAsync(ownerSubjectId); rulesets = RulesCatalog.List().Concat(await PackageInstaller.ListRulesetsAsync(ownerSubjectId)).GroupBy(value => value.Reference).Select(group => group.First()).ToArray(); } var id = await Repository.GetSelectedIdAsync(); selected = id is null ? null : await Repository.GetAsync(id.Value); characters = selected is null ? [] : (await CharacterRepository.ListAsync(selected.Id)).ToList(); }
+ protected override async Task OnInitializedAsync() { var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User; ownerSubjectId = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier); rulesets = RulesCatalog.List(); await LoadAsync(); if (ownerSubjectId is not null) { sshCredentials = await CredentialService.ListAsync(ownerSubjectId); installedPackages = await PackageInstaller.ListAsync(ownerSubjectId); rulesets = RulesCatalog.List().Concat(await PackageInstaller.ListRulesetsAsync(ownerSubjectId)).GroupBy(value => value.Reference).Select(group => group.First()).ToArray(); } var id = await Repository.GetSelectedIdAsync(); selected = id is null ? null : await Repository.GetAsync(id.Value); characters = selected is null ? [] : (await CharacterRepository.ListAsync(selected.Id)).ToList(); npcs = selected is null ? [] : (await NpcRepository.ListAsync(selected.Id)).ToList(); peopleAndFactions = selected is null ? [] : (await EntityRepository.ListAsync(selected.Id)).ToList(); places = selected is null ? [] : (await PlaceRepository.ListAsync(selected.Id)).ToList(); }
  private async Task LoadAsync() => campaigns = (await Repository.ListAsync(showArchived)).ToList();
  private void BeginCreate() { selected = null; draft = new(); ResetPackageForm(); error = null; editing = true; }
  private void Edit(Campaign campaign) { selected = campaign; draft = new() { Name = campaign.Name, Ruleset = campaign.Ruleset?.ToString() ?? "", Setting = campaign.Setting, Summary = campaign.Summary }; ResetPackageForm(); error = null; editing = true; }
@@ -51,7 +60,7 @@
  private async Task InstallAsync() => await InstallAsync(null); private async Task AcceptHostAndInstallAsync() => await InstallAsync(hostKey?.Fingerprint);
  private async Task InstallAsync(string? acceptedFingerprint) { if (ownerSubjectId is null) { packageError = "Your signed-in profile could not be identified."; return; } installing = true; packageError = packageMessage = null; try { var credentialId = Guid.TryParse(packageDraft.Credential, out var id) ? id : (Guid?)null; var result = await PackageInstaller.InstallFromGitAsync(ownerSubjectId, new(packageDraft.RepositoryUrl, packageDraft.Revision, credentialId, packageDraft.Passphrase, acceptedFingerprint)); if (result is GitPackageInstallResult.HostKeyApprovalRequired approval) { hostKey = approval.HostKey; hostKeyChanged = approval.Changed; return; } var installed = ((GitPackageInstallResult.Installed)result).Package; packageMessage = $"{installed.Name} {installed.Ruleset.Version} installed at commit {installed.ResolvedCommit[..Math.Min(10, installed.ResolvedCommit.Length)]}."; hostKey = null; packageDraft.Passphrase = null; installedPackages = await PackageInstaller.ListAsync(ownerSubjectId); rulesets = RulesCatalog.List().Concat(await PackageInstaller.ListRulesetsAsync(ownerSubjectId)).GroupBy(value => value.Reference).Select(group => group.First()).ToArray(); } catch (RulesPackageInstallException exception) { packageError = exception.Message; hostKey = null; } catch (KeyNotFoundException) { packageError = "The selected SSH credential is no longer available."; hostKey = null; } finally { installing = false; } }
  private void ClearHostReview() { hostKey = null; hostKeyChanged = false; } private void ResetPackageForm() { packageDraft = new(); hostKey = null; hostKeyChanged = false; packageError = packageMessage = null; }
- private async Task OpenAsync(Campaign campaign) { selected = campaign; await Repository.SetSelectedIdAsync(campaign.Id); characters = (await CharacterRepository.ListAsync(campaign.Id)).ToList(); } private async Task ArchiveAsync(Campaign campaign) { campaign.Archive(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); if (selected?.Id == campaign.Id) { selected = null; characters = []; await Repository.SetSelectedIdAsync(null); } await LoadAsync(); } private async Task RestoreAsync(Campaign campaign) { campaign.Restore(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); await LoadAsync(); }
+ private async Task OpenAsync(Campaign campaign) { selected = campaign; await Repository.SetSelectedIdAsync(campaign.Id); characters = (await CharacterRepository.ListAsync(campaign.Id)).ToList(); npcs = (await NpcRepository.ListAsync(campaign.Id)).ToList(); peopleAndFactions = (await EntityRepository.ListAsync(campaign.Id)).ToList(); places = (await PlaceRepository.ListAsync(campaign.Id)).ToList(); } private async Task ArchiveAsync(Campaign campaign) { campaign.Archive(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); if (selected?.Id == campaign.Id) { selected = null; characters = []; npcs = []; peopleAndFactions = []; places = []; await Repository.SetSelectedIdAsync(null); } await LoadAsync(); } private async Task RestoreAsync(Campaign campaign) { campaign.Restore(DateTimeOffset.UtcNow); await Repository.SaveAsync(campaign); await LoadAsync(); }
  private string RulesetName(Campaign campaign)
  {
   if (campaign.Ruleset is null) return "No ruleset";
@@ -59,4 +68,18 @@
   return name is null ? $"Unavailable - {campaign.Ruleset}" : $"{name} - {campaign.Ruleset}";
  }
  private sealed class Draft { public string Name { get; set; } = ""; public string Ruleset { get; set; } = ""; public string? Setting { get; set; } public string? Summary { get; set; } } private sealed class PackageDraft { public string RepositoryUrl { get; set; } = ""; public string Revision { get; set; } = "main"; public string Credential { get; set; } = ""; public string? Passphrase { get; set; } }
+}
+
+@code {
+    private ICampaignRepository Repository => Gm.Campaigns;
+    private IRulesCatalog RulesCatalog => Gm.Rules;
+    private IRulesPackageInstaller PackageInstaller => Gm.Packages;
+    private ISshCredentialService CredentialService => Gm.Credentials;
+    private ICharacterRepository CharacterRepository => Gm.Characters;
+}
+
+@code {
+    private INpcRepository NpcRepository => Gm.Npcs;
+    private ICampaignEntityRepository EntityRepository => Gm.People;
+    private ICampaignPlaceRepository PlaceRepository => Gm.Places;
 }

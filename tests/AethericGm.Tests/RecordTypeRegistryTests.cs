@@ -44,4 +44,14 @@ public sealed class RecordTypeRegistryTests
             new RecordTypeDefinition("child", "Child", [new RecordFieldDefinition("name", "Name", RecordValueKind.Integer)], extends: "parent")
         ]));
     }
+
+    [Fact]
+    public void Markdown_format_is_limited_to_singular_text_fields()
+    {
+        var field = new RecordFieldDefinition("description", "Description", RecordValueKind.Text, textFormat: RecordTextFormat.Markdown);
+
+        Assert.Equal(RecordTextFormat.Markdown, field.TextFormat);
+        Assert.Throws<ArgumentException>(() => new RecordFieldDefinition("count", "Count", RecordValueKind.Integer, textFormat: RecordTextFormat.Markdown));
+        Assert.Throws<ArgumentException>(() => new RecordFieldDefinition("notes", "Notes", RecordValueKind.Text, RecordCardinality.Many, textFormat: RecordTextFormat.Markdown));
+    }
 }

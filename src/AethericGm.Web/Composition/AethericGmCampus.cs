@@ -1,3 +1,4 @@
+using AethericGm.Institutions.Gm;
 using AethericForge.Runtime.Abstractions.Interfaces.Identity.Lifecycle;
 using AethericForge.Runtime.Abstractions.Interfaces.Identity.Services;
 using AethericForge.Runtime.Abstractions.Interfaces.Identity.Subjects;
@@ -30,8 +31,10 @@ public sealed class AethericGmCampus : IHostedService
             .Build();
         Registry = new Registry(new RegistryContext(registryTemplate, services, Campus), registryService, registrar);
         Campus.Register<IRegistry>(Registry);
+        Gm = Campus.RegisterAethericGm(services);
     }
 
+    public IAethericGm Gm { get; }
     public Campus Campus { get; }
     public Registry Registry { get; }
 
@@ -53,12 +56,15 @@ public sealed class AethericGmCampus : IHostedService
     {
         await Campus.InitializeAsync(cancellationToken);
         await Registry.InitializeAsync(cancellationToken);
+        await Gm.InitializeAsync(cancellationToken);
         await Campus.StartAsync(cancellationToken);
         await Registry.StartAsync(cancellationToken);
+        await Gm.StartAsync(cancellationToken);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        await Gm.StopAsync(cancellationToken);
         await Registry.StopAsync(cancellationToken);
         await Campus.StopAsync(cancellationToken);
     }

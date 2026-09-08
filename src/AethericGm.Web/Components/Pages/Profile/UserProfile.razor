@@ -1,6 +1,6 @@
 @page "/profile"
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
 @using System.Security.Claims
-@inject ISshCredentialService Credentials
 @inject AuthenticationStateProvider AuthenticationState
 
 <PageTitle>Profile · Aetheric GM</PageTitle>
@@ -94,4 +94,8 @@
   { message = exception.Message; hasError = true; }
   finally { busy = false; }
  }
+}
+
+@code {
+    private ISshCredentialService Credentials => Gm.Credentials;
 }
