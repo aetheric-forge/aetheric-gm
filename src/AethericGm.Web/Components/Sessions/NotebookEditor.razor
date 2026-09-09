@@ -20,7 +20,7 @@
             <label>Planned date <input data-notebook-field="date" type="date" @bind="date" @bind:after="ChangedAsync" /></label>
             <label>Status <select data-notebook-field="status" @bind="status" @bind:after="ChangedAsync">@foreach (var value in Enum.GetValues<SessionStatus>()) { <option value="@value">@value</option> }</select></label>
         </div>
-        <div class="actions"><button class="quiet" @onclick="() => preview = !preview">@(preview ? "Write" : "Preview")</button><button class="primary" disabled="@(!dirty || saving || conflict)" @onclick="SaveAsync">Save now</button><span role="status" aria-live="polite">@saveStatus</span></div>
+        <div class="actions"><button class="quiet" @onclick="() => preview = !preview">@(preview ? "Write" : "Preview")</button><button class="primary" disabled="@(saving || conflict)" @onclick="SaveNowAsync">Save now</button><span role="status" aria-live="polite">@saveStatus</span></div>
         @if (error is not null) { <p role="alert" class="error">@error</p> }
         @if (conflict) { <button class="quiet" @onclick="ReloadAsync">Load latest and keep my draft for recovery</button> }
         <label hidden="@preview">Notebook <textarea data-notebook-field="markdown" rows="24" @bind="markdown" @bind:event="oninput" @bind:after="ChangedAsync" spellcheck="true" placeholder="Begin anywhere. Markdown headings, lists, and links are welcome."></textarea></label>
@@ -81,12 +81,30 @@
             draftRecoveryAvailable = result.Available;
         }
         catch (JSException) { draftRecoveryAvailable = false; }
-        ready = true; saveStatus = "Saved";
+        ready = true; saveStatus = SavedStatus;
         await InvokeAsync(StateHasChanged);
+    }
+    private string SavedStatus => $"All changes saved · revision {head.Revision}";
+    private void MarkDirty()
+    {
+        dirty = true; saveStatus = "Unsaved changes";
+        StateHasChanged();
+    }
+    private async Task RememberDraftAsync()
+    {
+        if (module is null) return;
+        try { await module.InvokeVoidAsync("remember", editor, Capture()); }
+        catch (JSException) { draftRecoveryAvailable = false; }
+    }
+    private async Task SaveNowAsync()
+    {
+        debounce?.Cancel();
+        if (!dirty) { saveStatus = SavedStatus; return; }
+        await SaveAsync();
     }
     private async Task ChangedAsync()
     {
-        dirty = true; saveStatus = "Unsaved changes";
+        MarkDirty();
         debounce?.Cancel(); debounce?.Dispose(); debounce = new();
         var token = debounce.Token;
         try { await Task.Delay(800, token); if (!disposed) await SaveAsync(); }
@@ -99,12 +117,12 @@
         {
             if (!dirty || conflict || disposed || pending is not null) return;
             var snapshot = Capture();
-            saving = true; saveStatus = "Saving…";
+            saving = true; saveStatus = "Saving…"; StateHasChanged();
             var updated = head.Edit(snapshot.Title, snapshot.Markdown,
                 DateOnly.TryParse(snapshot.Date, out var day) ? day : null, Enum.Parse<SessionStatus>(snapshot.Status), Author);
             head = await Gm.Sessions.SaveAsync(updated);
             dirty = Capture() != snapshot;
-            saveStatus = dirty ? "Unsaved changes" : "Saved";
+            saveStatus = dirty ? "Unsaved changes" : SavedStatus;
             error = null;
             if (module is not null)
             {
@@ -115,7 +133,7 @@
         catch (SessionConflictException e) { conflict = true; error = e.Message; saveStatus = "Conflict — draft kept"; }
         catch (ArgumentException e) { error = e.Message; saveStatus = "Not saved"; }
         catch (Exception e) { Logger.LogError(e, "Could not save session {SessionId}", head.Id); error = "Could not save. Your edits are still here; try Save now again."; saveStatus = "Not saved"; }
-        finally { saving = false; saveGate.Release(); }
+        finally { saving = false; saveGate.Release(); if (!disposed) StateHasChanged(); }
     }
     private async Task RecoverAsync()
     {
@@ -124,7 +142,7 @@
         date = DateTime.TryParse(draft.Date, out var day) ? day : null;
         status = Enum.TryParse<SessionStatus>(draft.Status, out var state) && Enum.IsDefined(state) ? state : SessionStatus.Draft;
         pending = null; dirty = true; saveStatus = "Recovered draft — review and Save now";
-        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
+        await RememberDraftAsync();
     }
     private async Task DiscardDraftAsync()
     {
@@ -148,7 +166,7 @@
     {
         if (historical is null || dirty || saving || conflict) return;
         SetFields(historical); dirty = true;
-        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
+        await RememberDraftAsync();
         await SaveAsync(); await LoadHistoryAsync();
     }
     private async Task AddReferenceAsync(CampaignEntitySummary item)
@@ -156,8 +174,9 @@
         var route = item.Reference.Kind switch { EntityKind.Npc => "npcs", EntityKind.Character => "characters", EntityKind.Place => "places", _ => "people" };
         var label = item.Name.Replace("\\", "\\\\").Replace("[", "\\[").Replace("]", "\\]");
         markdown += $"\n[{label}](/campaigns/{head.CampaignId}/{route}/{item.Reference.Id})\n";
-        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
-        await ChangedAsync();
+        var autosave = ChangedAsync();
+        await RememberDraftAsync();
+        await autosave;
     }
     public async ValueTask DisposeAsync()
     {
