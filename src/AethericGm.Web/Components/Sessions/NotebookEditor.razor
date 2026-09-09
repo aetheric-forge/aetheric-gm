@@ -7,7 +7,7 @@
 @inject ILogger<NotebookEditor> Logger
 
 <NavigationLock OnBeforeInternalNavigation="BeforeNavigation" />
-<header class="page-header"><div><p class="eyebrow">@CampaignName · Session notebook</p><h1>@head.Title</h1></div><a class="quiet action-link" href="/campaigns/@head.CampaignId/sessions">All sessions</a></header>
+<header class="page-header"><div><p class="eyebrow">@CampaignName · Session notebook</p><h1>@head.Title</h1></div><div class="actions"><a class="quiet action-link" href="/campaigns/@head.CampaignId/sessions">All sessions</a><a class="primary action-link" href="/campaigns/@head.CampaignId/sessions/@head.Id/continue">Create next session</a></div></header>
 @if (pending is not null)
 {
     <section class="panel" role="status"><h2>Recover your draft</h2><p>This tab has notes that differ from the saved notebook. Recover them to review before saving; saved revisions remain in history.</p><button class="primary" @onclick="RecoverAsync">Recover draft</button> <button class="quiet" @onclick="DiscardDraftAsync">Use saved notebook</button></section>

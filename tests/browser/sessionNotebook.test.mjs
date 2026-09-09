@@ -13,7 +13,7 @@ const window = {
     addEventListener: (name, callback) => windowListeners.set(name, callback),
     removeEventListener: (name, callback) => { if (windowListeners.get(name) === callback) windowListeners.delete(name); }
 };
-const api = new Function('sessionStorage', 'window', source.replaceAll('export function', 'function') + '\nreturn { attach, remember, acknowledge, discard, detach };')(sessionStorage, window);
+const api = new Function('sessionStorage', 'window', source.replaceAll('export function', 'function') + '\nreturn { attach, remember, acknowledge, discard, detach, selectedText };')(sessionStorage, window);
 const saved = { title: 'Notebook', markdown: 'Prep', date: '', status: 'Draft' };
 function editor() {
     const listeners = new Map();
@@ -48,3 +48,7 @@ sessionStorage.setItem = () => { throw new Error('Storage disabled'); };
 assert.equal(api.attach(editor(), 'blocked-storage', saved).available, false);
 sessionStorage.setItem = originalSet;
 console.log('Session notebook draft recovery checks passed.');
+
+assert.equal(api.selectedText({ value: 'Done.\nUnresolved: bell\nLater.', selectionStart: 6, selectionEnd: 22 }), 'Unresolved: bell');
+assert.equal(api.selectedText({ value: 'Notebook', selectionStart: 2, selectionEnd: 2 }), '');
+console.log('Session continuity text selection checks passed.');

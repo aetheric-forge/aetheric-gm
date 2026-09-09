@@ -1,0 +1,36 @@
+@using AethericGm.Core.Sessions
+@using AethericGm.Web.Rules
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
+
+@if (Notebook.PreviousSessionId is not null || following.Count > 0)
+{
+    <nav class="panel" aria-label="Related sessions">
+        @if (Notebook.PreviousSessionId is { } previousId)
+        {
+            <p>Continues <a href="/campaigns/@Notebook.CampaignId/sessions/@previousId">@(previous?.Title ?? "Previous session")</a> · from revision @Notebook.SourceRevision</p>
+            @if (source is not null)
+            {
+                <details><summary>Read the source revision</summary><h3>@source.Title</h3><div class="markdown-preview">@((MarkupString)MarkdownRenderer.ToHtml(source.Markdown))</div></details>
+            }
+        }
+        @foreach (var next in following)
+        {
+            <p>Continued by <a href="/campaigns/@Notebook.CampaignId/sessions/@next.Id">@next.Title</a> · @next.Status</p>
+        }
+    </nav>
+}
+@code {
+    [Parameter, EditorRequired] public SessionNotebook Notebook { get; set; } = null!;
+    private SessionNotebook? previous, source;
+    private IReadOnlyList<SessionNotebook> following = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        previous = null; source = null;
+        if (Notebook.PreviousSessionId is { } id)
+        {
+            previous = await Gm.Sessions.GetAsync(Notebook.CampaignId, id);
+            source = await Gm.Sessions.GetRevisionAsync(Notebook.CampaignId, id, Notebook.SourceRevision!.Value);
+        }
+        following = (await Gm.Sessions.ListAsync(Notebook.CampaignId)).Where(s => s.PreviousSessionId == Notebook.Id).ToArray();
+    }
+}

@@ -1,0 +1,105 @@
+@page "/campaigns/{CampaignId:guid}/sessions/{SessionId:guid}/continue"
+@using AethericGm.Core.Sessions
+@implements IAsyncDisposable
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<ContinueSession> Logger
+
+<PageTitle>Create next session · Aetheric GM</PageTitle>
+<NavigationLock ConfirmExternalNavigation="@dirty" OnBeforeInternalNavigation="BeforeNavigationAsync" />
+@if (source is null || campaign is null)
+{
+    <h1>Session unavailable</h1><p>This session could not be found in the requested campaign.</p>
+}
+else
+{
+    <header class="page-header"><div><p class="eyebrow">@campaign.Name</p><h1>Create next session</h1><p>Continue from @source.Title. Choose the notes and unresolved threads you want to bring along.</p></div><a class="quiet action-link" href="/campaigns/@CampaignId/sessions/@SessionId">Back to source</a></header>
+    <div class="session-continuity-grid">
+        <section class="panel">
+            <h2>Previous notes</h2><p>@source.Title · Saved revision @source.Revision</p>
+            <label>Source notebook <textarea @ref="sourceText" rows="20" readonly value="@source.Markdown" aria-label="Source notebook; select notes to carry forward"></textarea></label>
+            <button class="quiet" disabled="@(module is null || busy)" @onclick="CarrySelectionAsync">Carry selected text</button>
+            <button class="quiet" disabled="@(carry.Length > 0 || busy)" @onclick="CarryAll">Use entire source notebook</button>
+            <p>The source notebook and its history stay unchanged.</p>
+        </section>
+        <section class="panel">
+            <h2>Next notebook</h2>
+            <fieldset disabled="@busy" class="session-continuity-fields">
+                <label>Title <input maxlength="200" @bind="title" @bind:event="oninput" @bind:after="MarkDirty" /></label>
+                <label>Planned date (optional) <input type="date" @bind="date" @bind:after="MarkDirty" /></label>
+                <label>Carry-forward notes</label>
+                <MarkdownEditor Value="carry" ValueChanged="SetCarry" Rows="18" AriaLabel="Carry-forward notes" />
+                <p>Edit these freely, or leave them blank. The next session starts as a Draft.</p>
+                @if (error is not null) { <p class="error" role="alert">@error</p> }
+                <p role="status">@message</p>
+                <button class="primary" @onclick="CreateAsync">Create next notebook</button>
+            </fieldset>
+        </section>
+    </div>
+}
+@code {
+    [Parameter] public Guid CampaignId { get; set; }
+    [Parameter] public Guid SessionId { get; set; }
+    private SessionNotebook? source;
+    private Campaign? campaign;
+    private string title = "", carry = "", author = "", message = "";
+    private string? error;
+    private DateTime? date;
+    private bool busy, dirty;
+    private Guid? createdId;
+    private ElementReference sourceText;
+    private IJSObjectReference? module;
+    protected override async Task OnParametersSetAsync()
+    {
+        campaign = await Gm.Campaigns.GetAsync(CampaignId);
+        source = await Gm.Sessions.GetAsync(CampaignId, SessionId);
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        author = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { module = await JS.InvokeAsync<IJSObjectReference>("import", "./sessionNotebook.js"); await InvokeAsync(StateHasChanged); }
+        catch (JSException) { message = "Copy and paste from the source notebook to choose notes."; await InvokeAsync(StateHasChanged); }
+    }
+    private void MarkDirty() => dirty = true;
+    private void SetCarry(string value) { carry = value; dirty = true; }
+    private void CarryAll() { if (source is not null && carry.Length == 0) SetCarry(source.Markdown); }
+    private async Task CarrySelectionAsync()
+    {
+        if (module is null) return;
+        var selected = await module.InvokeAsync<string>("selectedText", sourceText);
+        if (string.IsNullOrEmpty(selected)) { message = "Select some text in the source notebook first."; return; }
+        SetCarry(carry.Length == 0 ? selected : carry + "\n\n" + selected);
+        message = "Selected notes added. You can edit them before creating the notebook.";
+    }
+    private async Task CreateAsync()
+    {
+        if (busy || source is null || campaign is null) return;
+        busy = true; error = null;
+        try
+        {
+            if (createdId is null)
+            {
+                var next = source.CreateNext(title, carry, date is { } day ? DateOnly.FromDateTime(day) : null, author);
+                var saved = await Gm.Sessions.SaveAsync(next);
+                createdId = saved.Id;
+            }
+            dirty = false;
+            Navigation.NavigateTo($"/campaigns/{CampaignId}/sessions/{createdId}");
+        }
+        catch (ArgumentException e) { error = e.Message; }
+        catch (Exception e) { Logger.LogError(e, "Could not continue session {SessionId}", SessionId); error = "The next notebook could not be opened. Your notes are still here; try again."; }
+        finally { busy = false; }
+    }
+    private async Task BeforeNavigationAsync(LocationChangingContext context)
+    {
+        if (dirty && !await JS.InvokeAsync<bool>("confirm", "Leave without creating the next notebook? Your carry-forward notes will be discarded.")) context.PreventNavigation();
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null) { try { await module.DisposeAsync(); } catch (JSDisconnectedException) { } }
+    }
+}

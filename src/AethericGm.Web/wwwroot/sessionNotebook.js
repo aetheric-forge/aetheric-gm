@@ -61,3 +61,7 @@ export function detach(element) {
     window.removeEventListener('beforeunload', state.leave);
     editors.delete(element);
 }
+
+export function selectedText(textarea) {
+    return textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+}
