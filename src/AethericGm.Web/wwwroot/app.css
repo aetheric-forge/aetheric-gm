@@ -39,3 +39,15 @@ button { border:0; border-radius:7px; padding:9px 14px; cursor:pointer; font-wei
 .npc-toolbar{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.npc-list a{position:relative}.npc-list .badge{justify-self:start}.npc-package-entry{margin-top:12px}.record-fields{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #e5e0d4}.record-fields dd{margin:0}.resource-list{display:grid;gap:8px;margin-top:12px}.resource-row{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;background:#f3efe6}.resource-row strong{flex:1}.resource-row span{font-variant-numeric:tabular-nums;color:#556}
 .relationships-panel{margin-top:16px}.relationship-list{display:grid;gap:8px;margin-top:12px}.relationship-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:#f3efe6;flex-wrap:wrap}.relationship-arrow{font-weight:800;color:#906630}.relationship-label{font-weight:700}.relationship-target{color:#2f594c;text-decoration:none;flex:1}.relationship-target.unavailable{color:#77736a;font-style:italic}.relationship-form{margin-top:16px}.checkbox-field{display:flex!important;flex-direction:row!important;align-items:center;gap:7px;font-size:.86rem}.checkbox-field input{width:auto!important}
 .place-tree{display:grid;gap:4px;margin-top:12px}.place-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}.place-row:hover{background:#f3efe6}.place-row a{color:#2f594c;text-decoration:none;font-weight:700}.place-toggle{width:24px;height:24px;padding:0;background:transparent;color:#906630;font-weight:800}.place-toggle-spacer{display:inline-block;width:24px}a.place-row{display:grid;gap:2px;background:#efebe2;text-decoration:none;padding:12px 14px}a.place-row small{color:#77736a;font-weight:400}
+
+/* Session notebooks keep the writing surface central. */
+.session-notebook fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.session-notebook textarea { min-height: 26rem; line-height: 1.65; resize: vertical; }
+.session-notebook details { margin-top: 1.5rem; }
+.session-notebook summary { cursor: pointer; }
+.session-list-entry { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: 1rem 0; border-bottom: 1px solid var(--border, #dedbd0); }
+.session-list-entry > a { flex: 1 1 15rem; }
+.session-reference-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+.session-notebook .markdown-preview { overflow-wrap: anywhere; }
+
+.session-notebook [hidden] { display: none !important; }

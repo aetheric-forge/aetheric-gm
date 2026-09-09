@@ -1,0 +1,32 @@
+@page "/campaigns/{CampaignId:guid}/sessions/{SessionId:guid}"
+@using AethericGm.Core.Sessions
+@using AethericGm.Web.Components.Sessions
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
+@inject AuthenticationStateProvider Authentication
+@inject CampaignEntityDirectory Directory
+
+<PageTitle>Session notebook · Aetheric GM</PageTitle>
+@if (notebook is null || campaign is null)
+{
+    <h1>Session unavailable</h1><p>This session could not be found in the requested campaign.</p>
+}
+else
+{
+    <NotebookEditor @key="SessionId" Initial="notebook" CampaignName="campaign.Name" Author="author" References="references" />
+}
+@code {
+    [Parameter] public Guid CampaignId { get; set; }
+    [Parameter] public Guid SessionId { get; set; }
+    private SessionNotebook? notebook;
+    private Campaign? campaign;
+    private string author = "";
+    private IReadOnlyList<CampaignEntitySummary> references = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        campaign = await Gm.Campaigns.GetAsync(CampaignId);
+        notebook = await Gm.Sessions.GetAsync(CampaignId, SessionId);
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        author = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        if (campaign is not null) references = await Directory.ListAsync(CampaignId);
+    }
+}

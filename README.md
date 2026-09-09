@@ -2,7 +2,7 @@
 
 A rules-neutral campaign helper for a single game master. Local-first, offline-capable, and built so that licensed third-party rulesets never have to live in this repository.
 
-> **Status:** early and actively evolving. v0.1 shipped private rules-package loading and a rules-enabled campaign workspace; v0.2 (in progress) adds dice rolling, character creation, and a proper character sheet. See the [product backlog](docs/product/backlog.md) for the full picture.
+> **Status:** early and actively evolving. v0.1 shipped private rules-package loading and a rules-enabled campaign workspace; v0.2 added dice rolling and character sheets; v0.3 delivered the campaign world. v0.4 is in development with session notebooks. See the [product backlog](docs/product/backlog.md) for the full picture.
 
 ## What it does
 

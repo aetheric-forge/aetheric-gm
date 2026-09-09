@@ -47,6 +47,11 @@ Authentication/authorization UI, generative AI, bundled third-party rules compen
 
 ## Current slice
 
-# Version 0.1 established private rules package loading and a rules-enabled campaign workspace. Version 0.2 delivered live-play foundations: animated 2D dice, inline rolls from rules prose, character creation, and a proper character sheet, ending with Story 17. Version 0.3 delivered the [campaign-world milestone](v0.3.md): an NPC catalog, people and factions with typed relationships, and a place hierarchy, ending with Story 21. The next slice will be chosen after v0.3 is released and reviewed.
+v0.3 delivered the campaign-world milestone through Story 21 and is merged. v0.4 starts with
+[session notebooks](v0.4.md): a continuous Markdown document, session lifecycle, reliable saving,
+campaign links, and recoverable revision history. Conversation and TableTop are shared runtime
+boundaries for future Slack and Owlbear Rodeo adapters; this notebook slice does not connect them.
 
-Version 0.2 delivered animated 2D dice, inline rolls from rules prose, character creation, and a proper character sheet. The current target is the [v0.3 campaign-world milestone](v0.3.md), beginning with the NPC catalog in Story 18. Development starts with the milestone's stabilization and domain-design gate before implementation.
+Deployment automation is deferred to v1.0. Automated end-to-end browser coverage, comprehensive
+accessibility checks, and migration of older repository schemas to ordered migrations remain
+follow-up work. The older v0.3 development plan records intended work, not a completion checklist.

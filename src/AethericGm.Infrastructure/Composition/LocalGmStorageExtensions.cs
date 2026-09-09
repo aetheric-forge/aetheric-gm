@@ -1,3 +1,5 @@
+using AethericGm.Core.Sessions;
+using AethericGm.Infrastructure.Sessions;
 using Microsoft.Extensions.Logging;
 using AethericGm.Core.Npcs;
 using AethericGm.Infrastructure.Npcs;
@@ -66,6 +68,8 @@ public static class LocalGmStorageExtensions
         services.AddSingleton<ICampaignPlaceRepository>(sp => sp.GetRequiredService<SqliteCampaignPlaceRepository>());
         services.AddSingleton(new SqliteRelationshipRepository(connectionString));
         services.AddSingleton<ICampaignRelationshipRepository>(sp => sp.GetRequiredService<SqliteRelationshipRepository>());
+        services.AddSingleton(sp => new SqliteSessionNotebookRepository(connectionString, sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<ISessionNotebookRepository>(sp => sp.GetRequiredService<SqliteSessionNotebookRepository>());
         services.AddSingleton<RulesetWorkspaceResolver>();
         return services;
     }
@@ -74,6 +78,7 @@ public static class LocalGmStorageExtensions
     {
         Directory.CreateDirectory(services.GetRequiredService<LocalGmStorageOptions>().DataDirectory);
         await services.GetRequiredService<SqliteCampaignRepository>().InitializeAsync(cancellationToken);
+        await services.GetRequiredService<SqliteSessionNotebookRepository>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<SqliteCharacterRepository>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<SqliteNpcRepository>().InitializeAsync(cancellationToken);
         await services.GetRequiredService<SqliteCampaignEntityRepository>().InitializeAsync(cancellationToken);

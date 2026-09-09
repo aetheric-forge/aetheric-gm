@@ -1,0 +1,171 @@
+@using AethericGm.Core.Sessions
+@using AethericGm.Web.Rules
+@implements IAsyncDisposable
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject ILogger<NotebookEditor> Logger
+
+<NavigationLock OnBeforeInternalNavigation="BeforeNavigation" />
+<header class="page-header"><div><p class="eyebrow">@CampaignName · Session notebook</p><h1>@head.Title</h1></div><a class="quiet action-link" href="/campaigns/@head.CampaignId/sessions">All sessions</a></header>
+@if (pending is not null)
+{
+    <section class="panel" role="status"><h2>Recover your draft</h2><p>This tab has notes that differ from the saved notebook. Recover them to review before saving; saved revisions remain in history.</p><button class="primary" @onclick="RecoverAsync">Recover draft</button> <button class="quiet" @onclick="DiscardDraftAsync">Use saved notebook</button></section>
+}
+@if (!draftRecoveryAvailable) { <p class="error" role="status">Browser draft recovery is unavailable. Wait for Saved before refreshing or leaving.</p> }
+<section class="panel session-notebook" @ref="editor">
+    <fieldset disabled="@(pending is not null || !ready)">
+        <label>Title <input data-notebook-field="title" maxlength="200" @bind="title" @bind:event="oninput" @bind:after="ChangedAsync" /></label>
+        <div class="field-row">
+            <label>Planned date <input data-notebook-field="date" type="date" @bind="date" @bind:after="ChangedAsync" /></label>
+            <label>Status <select data-notebook-field="status" @bind="status" @bind:after="ChangedAsync">@foreach (var value in Enum.GetValues<SessionStatus>()) { <option value="@value">@value</option> }</select></label>
+        </div>
+        <div class="actions"><button class="quiet" @onclick="() => preview = !preview">@(preview ? "Write" : "Preview")</button><button class="primary" disabled="@(!dirty || saving || conflict)" @onclick="SaveAsync">Save now</button><span role="status" aria-live="polite">@saveStatus</span></div>
+        @if (error is not null) { <p role="alert" class="error">@error</p> }
+        @if (conflict) { <button class="quiet" @onclick="ReloadAsync">Load latest and keep my draft for recovery</button> }
+        <label hidden="@preview">Notebook <textarea data-notebook-field="markdown" rows="24" @bind="markdown" @bind:event="oninput" @bind:after="ChangedAsync" spellcheck="true" placeholder="Begin anywhere. Markdown headings, lists, and links are welcome."></textarea></label>
+        @if (preview) { <div class="markdown-preview">@((MarkupString)MarkdownRenderer.ToHtml(markdown))</div> }
+        <details><summary>Link campaign material</summary><p>Append a stable link, then move it wherever it belongs in your story.</p>
+            <label>Find a character, NPC, person, faction, or place <input @bind="referenceSearch" @bind:event="oninput" /></label>
+            <div class="session-reference-list">@foreach (var item in References.Where(r => r.Name.Contains(referenceSearch, StringComparison.OrdinalIgnoreCase)).Take(30)) { <button class="quiet" @onclick="() => AddReferenceAsync(item)">@item.Name · @item.Reference.Kind</button> }</div>
+        </details>
+    </fieldset>
+</section>
+<section class="panel"><details @ontoggle="LoadHistoryAsync"><summary>Revision history</summary>
+    <button class="quiet" @onclick="LoadHistoryAsync">Refresh history</button>
+    <p>Restoring creates a new revision; earlier notes remain available.</p>
+    @foreach (var revision in history)
+    {
+        <div class="session-list-entry"><span>Revision @revision.Revision · @revision.SavedAt.ToLocalTime().ToString("g") · @revision.Status</span><button class="quiet" disabled="@(dirty || saving || pending is not null)" @onclick="() => InspectRevisionAsync(revision.Revision)">Read revision</button></div>
+    }
+    @if (historical is not null)
+    {
+        <h3>@historical.Title · Revision @historical.Revision</h3><div class="markdown-preview">@((MarkupString)MarkdownRenderer.ToHtml(historical.Markdown))</div>
+        <button class="primary" disabled="@(dirty || saving || conflict || pending is not null)" @onclick="RestoreAsync">Restore this revision</button>
+    }
+</details></section>
+
+@code {
+    [Parameter, EditorRequired] public SessionNotebook Initial { get; set; } = null!;
+    [Parameter] public string CampaignName { get; set; } = "";
+    [Parameter] public string Author { get; set; } = "";
+    [Parameter] public IReadOnlyList<CampaignEntitySummary> References { get; set; } = [];
+    private SessionNotebook head = null!;
+    private string title = "", markdown = "", referenceSearch = "", saveStatus = "Loading notebook…";
+    private DateTime? date;
+    private SessionStatus status;
+    private bool dirty, saving, conflict, preview, disposed, ready;
+    private bool draftRecoveryAvailable = true;
+    private string? error;
+    private ElementReference editor;
+    private IJSObjectReference? module;
+    private CancellationTokenSource? debounce;
+    private readonly SemaphoreSlim saveGate = new(1, 1);
+    private IReadOnlyList<SessionRevisionSummary> history = [];
+    private SessionNotebook? historical;
+    private Draft? pending;
+    private string StorageKey => $"gm-session:{Author}:{head.CampaignId}:{head.Id}";
+    public sealed record Draft(string Title, string Markdown, string Date, string Status);
+    public sealed record DraftState(bool Available, Draft? Pending);
+    protected override void OnInitialized() { head = Initial; SetFields(head); }
+    private void SetFields(SessionNotebook value) { title = value.Title; markdown = value.Markdown; date = value.PlannedDate?.ToDateTime(TimeOnly.MinValue); status = value.Status; }
+    private Draft Capture() => new(title, markdown, date?.ToString("yyyy-MM-dd") ?? "", status.ToString());
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./sessionNotebook.js");
+            var result = await module.InvokeAsync<DraftState>("attach", editor, StorageKey, Capture());
+            pending = result.Pending;
+            draftRecoveryAvailable = result.Available;
+        }
+        catch (JSException) { draftRecoveryAvailable = false; }
+        ready = true; saveStatus = "Saved";
+        await InvokeAsync(StateHasChanged);
+    }
+    private async Task ChangedAsync()
+    {
+        dirty = true; saveStatus = "Unsaved changes";
+        debounce?.Cancel(); debounce?.Dispose(); debounce = new();
+        var token = debounce.Token;
+        try { await Task.Delay(800, token); if (!disposed) await SaveAsync(); }
+        catch (OperationCanceledException) { }
+    }
+    private async Task SaveAsync()
+    {
+        await saveGate.WaitAsync();
+        try
+        {
+            if (!dirty || conflict || disposed || pending is not null) return;
+            var snapshot = Capture();
+            saving = true; saveStatus = "Saving…";
+            var updated = head.Edit(snapshot.Title, snapshot.Markdown,
+                DateOnly.TryParse(snapshot.Date, out var day) ? day : null, Enum.Parse<SessionStatus>(snapshot.Status), Author);
+            head = await Gm.Sessions.SaveAsync(updated);
+            dirty = Capture() != snapshot;
+            saveStatus = dirty ? "Unsaved changes" : "Saved";
+            error = null;
+            if (module is not null)
+            {
+                try { draftRecoveryAvailable = await module.InvokeAsync<bool>("acknowledge", editor, snapshot); }
+                catch (JSException) { /* Database save succeeded; retain the browser draft conservatively. */ }
+            }
+        }
+        catch (SessionConflictException e) { conflict = true; error = e.Message; saveStatus = "Conflict — draft kept"; }
+        catch (ArgumentException e) { error = e.Message; saveStatus = "Not saved"; }
+        catch (Exception e) { Logger.LogError(e, "Could not save session {SessionId}", head.Id); error = "Could not save. Your edits are still here; try Save now again."; saveStatus = "Not saved"; }
+        finally { saving = false; saveGate.Release(); }
+    }
+    private async Task RecoverAsync()
+    {
+        var draft = pending!;
+        title = draft.Title; markdown = draft.Markdown;
+        date = DateTime.TryParse(draft.Date, out var day) ? day : null;
+        status = Enum.TryParse<SessionStatus>(draft.Status, out var state) && Enum.IsDefined(state) ? state : SessionStatus.Draft;
+        pending = null; dirty = true; saveStatus = "Recovered draft — review and Save now";
+        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
+    }
+    private async Task DiscardDraftAsync()
+    {
+        pending = null;
+        if (module is not null) await module.InvokeVoidAsync("discard", editor, Capture());
+    }
+    private async Task ReloadAsync()
+    {
+        if (module is not null) await module.InvokeVoidAsync("detach", editor);
+        dirty = false;
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+    private async Task BeforeNavigation(LocationChangingContext context)
+    {
+        await SaveAsync();
+        if (dirty || pending is not null) context.PreventNavigation();
+    }
+    private async Task LoadHistoryAsync() { history = await Gm.Sessions.ListRevisionsAsync(head.CampaignId, head.Id); }
+    private async Task InspectRevisionAsync(int revision) { historical = await Gm.Sessions.GetRevisionAsync(head.CampaignId, head.Id, revision); }
+    private async Task RestoreAsync()
+    {
+        if (historical is null || dirty || saving || conflict) return;
+        SetFields(historical); dirty = true;
+        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
+        await SaveAsync(); await LoadHistoryAsync();
+    }
+    private async Task AddReferenceAsync(CampaignEntitySummary item)
+    {
+        var route = item.Reference.Kind switch { EntityKind.Npc => "npcs", EntityKind.Character => "characters", EntityKind.Place => "places", _ => "people" };
+        var label = item.Name.Replace("\\", "\\\\").Replace("[", "\\[").Replace("]", "\\]");
+        markdown += $"\n[{label}](/campaigns/{head.CampaignId}/{route}/{item.Reference.Id})\n";
+        if (module is not null) await module.InvokeVoidAsync("remember", editor, Capture());
+        await ChangedAsync();
+    }
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true; debounce?.Cancel(); debounce?.Dispose();
+        if (module is not null)
+        {
+            try { await module.InvokeVoidAsync("detach", editor); await module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

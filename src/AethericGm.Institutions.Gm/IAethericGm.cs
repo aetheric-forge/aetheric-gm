@@ -1,3 +1,4 @@
+using AethericGm.Core.Sessions;
 using AethericGm.Core.Npcs;
 using AethericGm.Core.People;
 using AethericGm.Core.Places;
@@ -26,5 +27,6 @@ public interface IAethericGm : IInstitution
     ICampaignEntityRepository People { get; }
     ICampaignPlaceRepository Places { get; }
     ICampaignRelationshipRepository Relationships { get; }
+    ISessionNotebookRepository Sessions { get; }
     IDiceRoller Dice { get; }
 }

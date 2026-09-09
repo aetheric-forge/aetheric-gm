@@ -1,3 +1,4 @@
+using AethericGm.Core.Sessions;
 using AethericGm.Core.Npcs;
 using AethericGm.Core.People;
 using AethericGm.Core.Places;
@@ -25,6 +26,7 @@ public sealed class AethericGmInstitution(
     ICampaignEntityRepository people,
     ICampaignPlaceRepository places,
     ICampaignRelationshipRepository relationships,
+    ISessionNotebookRepository sessions,
     IDiceRoller dice) : InstitutionBase(context), IAethericGm
 {
     public ICampaignRepository Campaigns { get; } = campaigns;
@@ -37,5 +39,6 @@ public sealed class AethericGmInstitution(
     public ICampaignEntityRepository People { get; } = people;
     public ICampaignPlaceRepository Places { get; } = places;
     public ICampaignRelationshipRepository Relationships { get; } = relationships;
+    public ISessionNotebookRepository Sessions { get; } = sessions;
     public IDiceRoller Dice { get; } = dice;
 }

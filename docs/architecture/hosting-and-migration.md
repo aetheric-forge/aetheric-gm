@@ -6,7 +6,7 @@ The same `AethericGmInstitution` type serves both hosts.
 
 ## Composition contract
 
-Reference `AethericGm.Institutions.Gm` and `AethericGm.Core` from the host. Register the eleven
+Reference `AethericGm.Institutions.Gm` and `AethericGm.Core` from the host. Register the twelve
 GM capabilities required by `IAethericGm` as singleton-compatible services. To use the
 existing adapters, reference `AethericGm.Infrastructure` and register:
 

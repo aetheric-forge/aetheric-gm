@@ -1,0 +1,62 @@
+@page "/campaigns/{CampaignId:guid}/sessions"
+@using AethericGm.Core.Sessions
+@inject AethericGm.Institutions.Gm.IAethericGm Gm
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+
+<PageTitle>Sessions · Aetheric GM</PageTitle>
+@if (campaign is null)
+{
+    <h1>Campaign unavailable</h1>
+}
+else
+{
+    <header class="page-header"><div><p class="eyebrow">@campaign.Name</p><h1>Session notebooks</h1><p>From a few ideas to the story of your table.</p></div><a class="quiet action-link" href="/">Back to campaign</a></header>
+    <section class="panel">
+        <h2>New session</h2>
+        <label>Title <input maxlength="200" @bind="newTitle" placeholder="The next chapter" /></label>
+        @if (error is not null) { <p class="error" role="alert">@error</p> }
+        <button class="primary" disabled="@busy" @onclick="CreateAsync">Create notebook</button>
+    </section>
+    <section class="panel">
+        <label>Find a session <input @bind="search" @bind:event="oninput" placeholder="Search titles or notes" /></label>
+        @if (sessions.Count == 0) { <p>No sessions yet. Start with a blank notebook above.</p> }
+        @foreach (var session in sessions.Where(s => s.Title.Contains(search, StringComparison.OrdinalIgnoreCase) || s.Markdown.Contains(search, StringComparison.OrdinalIgnoreCase)))
+        {
+            <article class="session-list-entry">
+                <a href="/campaigns/@CampaignId/sessions/@session.Id"><strong>@session.Title</strong></a>
+                <span>@session.Status · @(session.PlannedDate?.ToString("MMM d, yyyy") ?? "Unscheduled")</span>
+                <small>Updated @session.UpdatedAt.ToLocalTime().ToString("g")</small>
+            </article>
+        }
+    </section>
+}
+@code {
+    [Parameter] public Guid CampaignId { get; set; }
+    private Campaign? campaign;
+    private IReadOnlyList<SessionNotebook> sessions = [];
+    private string newTitle = "", search = "", author = "";
+    private string? error;
+    private bool busy;
+    protected override async Task OnParametersSetAsync()
+    {
+        campaign = await Gm.Campaigns.GetAsync(CampaignId);
+        sessions = await Gm.Sessions.ListAsync(CampaignId);
+        var user = (await Authentication.GetAuthenticationStateAsync()).User;
+        author = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+    }
+    private async Task CreateAsync()
+    {
+        if (busy || campaign is null) return;
+        busy = true; error = null;
+        try
+        {
+            var notebook = new SessionNotebook(Guid.NewGuid(), CampaignId, newTitle, "", null, SessionStatus.Draft, 0, DateTimeOffset.UtcNow, author);
+            await Gm.Sessions.SaveAsync(notebook);
+            Navigation.NavigateTo($"/campaigns/{CampaignId}/sessions/{notebook.Id}");
+        }
+        catch (ArgumentException e) { error = e.Message; }
+        catch (Exception) { error = "The notebook could not be created. Please try again."; }
+        finally { busy = false; }
+    }
+}
